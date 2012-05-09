@@ -563,6 +563,24 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   error = 0;
   
   debugf("executing %s\n", methodName);
+
+  /// find method specifiee
+  method = jvm_FindMethodInClass(jclass, methodName, methodType);
+  if (!method) {
+    debugf("JVM_ERROR_METHODNOTFOUND\n");
+    return JVM_ERROR_METHODNOTFOUND;
+  }
+  
+  /// find code attribute
+  for (x = 0; x < method->attrCount; ++x) {
+    a = (JVMConstPoolUtf8*)jclass->pool[method->attrs[x].nameIndex - 1];
+    if (strcmp(a->string, "Code") == 0) {
+      code = method->attrs[x].info;
+      codesz = method->attrs[x].length;
+      break;
+    }
+  }
+  
   /// -----------------------------------------------------
   /// i think there is a way to determine how much local
   /// variable space is needed... but for now this will work
@@ -581,21 +599,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   for (; x < 256; ++x) {
     locals[x].data = 0;
     locals[x].flags = 0;
-  }
-  /// find method specifiee
-  method = jvm_FindMethodInClass(jclass, methodName, methodType);
-  if (!method) {
-    debugf("JVM_ERROR_METHODNOTFOUND\n");
-    return JVM_ERROR_METHODNOTFOUND;
-  }
-  /// find code attribute
-  for (x = 0; x < method->attrCount; ++x) {
-    a = (JVMConstPoolUtf8*)jclass->pool[method->attrs[x].nameIndex - 1];
-    if (strcmp(a->string, "Code") == 0) {
-      code = method->attrs[x].info;
-      codesz = method->attrs[x].length;
-      break;
-    }
   }
 
   debugf("execute code\n");
@@ -667,6 +670,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x3a:
         y = code[x+1];
         jvm_StackPop(&stack, &result);
+        if (locals[y].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[y].data)->stackCnt--;
         locals[y].data = result.data;
         locals[y].flags = result.flags;
         x += 2;
@@ -674,6 +679,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// astore_0
       case 0x4b:
         jvm_StackPop(&stack, &result);
+        if (locals[0].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[y].data)->stackCnt--;
         locals[0].data = result.data;
         locals[0].flags = result.flags;
         x += 1;
@@ -681,6 +688,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// astore_1
       case 0x4c:
         jvm_StackPop(&stack, &result);
+        if (locals[1].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[y].data)->stackCnt--;
         locals[1].data = result.data;
         locals[1].flags = result.flags;
         x += 1;
@@ -688,6 +697,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// astore_2
       case 0x4d:
         jvm_StackPop(&stack, &result);
+        if (locals[2].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[y].data)->stackCnt--;
         locals[2].data = result.data;
         locals[2].flags = result.flags;
         x += 1;
@@ -695,6 +706,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// astore_3
       case 0x4e:
         jvm_StackPop(&stack, &result);
+        if (locals[3].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[y].data)->stackCnt--;
         locals[3].data = result.data;
         locals[3].flags = result.flags;
         x += 1;
@@ -799,6 +812,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// aload: load a reference onto the stack from local variable 'y'
       case 0x19:
         y = code[x+1];
+        if (locals[y].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[y].data)->stackCnt--;
         jvm_StackPush(&stack, locals[y].data, locals[y].flags);
         if (locals[x].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[0].data)->stackCnt++;
@@ -806,6 +821,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// aload_0: load a reference onto the stack from local variable 0
       case 0x2a:
+        if (locals[0].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[0].data)->stackCnt--;
         jvm_StackPush(&stack, locals[0].data, locals[0].flags);
         if (locals[0].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[0].data)->stackCnt++;
@@ -813,6 +830,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// aload_1
       case 0x2b:
+        if (locals[1].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[1].data)->stackCnt--;
         jvm_StackPush(&stack, locals[1].data, locals[1].flags);
         if (locals[1].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[1].data)->stackCnt++;
@@ -820,6 +839,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// aload_2
       case 0x2c:
+        if (locals[2].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[2].data)->stackCnt--;
         jvm_StackPush(&stack, locals[2].data, locals[2].flags);
         if (locals[2].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[2].data)->stackCnt++;
@@ -827,6 +848,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// aload_3
       case 0x2d:
+        if (locals[3].flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)locals[3].data)->stackCnt--;
         jvm_StackPush(&stack, locals[3].data, locals[3].flags);
         if (locals[3].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[3].data)->stackCnt++;
@@ -944,8 +967,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          break;
       /// ireturn: return integer from method
       case 0xac:
+      debugf("return int from method\n");
       /// return: void from method
-      debugf("return integer found\n");
       case 0xb1:
         if (opcode == 0xac)
         {
@@ -955,8 +978,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           jvm_StackPop(&stack, _result);
         }
         
-         /// need to go through and decrement reference count of objects on stack and local
-         /// the stack should be empty right? maybe not...
+         ///
          debugf("scrubing stack and locals..\n");
          jvm_ScrubStack(&stack);
          debugf("here\n");
@@ -978,7 +1000,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       debugf("got runtime error -- scrubing locals and stack\n");
       jvm_ScrubStack(&stack);
       jvm_ScrubLocals(locals);
-      /// throw exception onto the stack
+      /// are we between an exception handler?
+      /// if so does it handle this exception?
+      /// --- if we are not or it does not then we must exit out
+      /// --- into the calling function so it can perform these
+      /// --- steps and see if it can handle the exception, until
+      /// --- either it gets caught or the program throws one
+      /// --- final exception out the initial executing method
       debugf("A run-time exception occured as type %i\n", error);
       exit(-3);
       return error;
@@ -991,8 +1019,8 @@ void jvm_ScrubLocals(JVMLocal *locals) {
   int           y;
   for (y = 0; y < 256; ++y) {
     if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
-      debugf("function return void decrement local object ref %u\n", ((JVMObject*)locals[y].data)->stackCnt);
       ((JVMObject*)locals[y].data)->stackCnt--;
+      debugf("SCRUB LOCALS ref:%lx refcnt:%i\n", locals[y].data, ((JVMObject*)locals[y].data)->stackCnt);
     }
   }
 }
@@ -1001,8 +1029,8 @@ void jvm_ScrubStack(JVMStack *stack) {
   while (jvm_StackMore(stack)) {
     jvm_StackPop(stack, &result);
     if (result.flags & JVM_STACK_ISOBJECTREF) {
-      debugf("function return void decrement stack object ref %u\n", ((JVMObject*)result.data)->stackCnt);
       ((JVMObject*)result.data)->stackCnt--;
+      debugf("SCRUB STACK ref:%lx refcnt:%u\n", result.data, ((JVMObject*)result.data)->stackCnt);
     }
   }
 }
@@ -1028,6 +1056,7 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
     return JVM_ERROR_OUTOFMEMORY;
   memset(*out, 0, sizeof(JVMObject));
   jobject->class = jclass;
+  jobject->stackCnt = 1;
   /// link us into global object chain
   jobject->next = jvm->objects;
   jvm->objects = jobject;
