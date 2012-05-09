@@ -16,7 +16,10 @@ typedef signed char             int8;
 #define JVM_ERROR_OUTOFMEMORY           -2
 #define JVM_ERROR_UNKNOWNOPCODE         -3
 #define JVM_ERROR_CLASSNOTFOUND         -4
-
+#define JVM_ERROR_ARRAYOUTOFBOUNDS      -5
+#define JVM_ERROR_NOTOBJREF             -6
+#define JVM_ERROR_SUPERMISSING          -7
+#define JVM_ERROR_NULLOBJREF            -8
 /*
   I have yet to use the other flags. Currently,
   I am using JVM_STACK_ISOBJECTREF soley, but
@@ -24,6 +27,7 @@ typedef signed char             int8;
   design I need to track the exact types better.
 */
 #define JVM_STACK_ISOBJECTREF   0x00000001
+#define JVM_STACK_ISARRAYREF    0x00000002
 #define JVM_STACK_ISBYTE        0x00000010
 #define JVM_STACK_ISCHAR        0x00000020
 #define JVM_STACK_ISDOUBLE      0x00000030
@@ -33,6 +37,9 @@ typedef signed char             int8;
 #define JVM_STACK_ISSHORT       0x00000070
 #define JVM_STACK_ISBOOL        0x00000080
 #define JVM_STACK_ISARRAY       0x00000090
+#define JVM_STACK_ISSTRING      0x000000a0
+
+#define debugf printf("[%s:%u] ", __FUNCTION__, __LINE__); printf
 
 typedef struct _JVMStack {
   uint64                *data;
@@ -75,8 +82,8 @@ void jvm_StackPush(JVMStack *stack, uint64 value, uint32 flags) {
   stack->flags[stack->pos] = flags;
   stack->data[stack->pos] = value;
   stack->pos++;
-  printf("stack push pos:%u\n", stack->pos);
-  printf("value:%u flags:%u\n", value, flags);
+  debugf("stack push pos:%u\n", stack->pos);
+  debugf("value:%u flags:%u\n", value, flags);
   jvm_DebugStack(stack);
 }
 
@@ -107,6 +114,11 @@ typedef struct _JVMConstPoolUtf8 {
   uint16		size;
   uint8			*string;
 } JVMConstPoolUtf8;
+
+typedef struct _JVMConstPoolString {
+  JVMConstPoolItem      hdr;
+  uint16                stringIndex;
+} JVMConstPoolString;
 
 typedef struct _JVMConstPoolNameAndType {
   JVMConstPoolItem	hdr;
@@ -179,7 +191,6 @@ typedef struct _JVMObject {
   uint64                        *fields;
   struct _JVMObject             *refs;
   int32                         stackCnt;
-  
 } JVMObject;
 
 typedef struct _JVM {
@@ -241,6 +252,11 @@ uint8* msRead(JVMMemoryStream *m, uint32 sz, uint8 *buf) {
 #define TAG_NAMEANDTYPE			12
 #define TAG_UTF8			1
 #define TAG_FIELDREF			9
+#define TAG_STRING                      8
+#define TAG_INTEGER                     3
+#define TAG_FLOAT                       4
+#define TAG_LONG                        5
+#define TAG_DOUBLE                      6
 
 JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   uint16			vmin;
@@ -256,6 +272,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   JVMConstPoolUtf8		*piu8;
   JVMConstPoolNameAndType	*pint;
   JVMConstPoolFieldRef		*pifr;
+  JVMConstPoolString            *pist;
   JVMClass			*class;
   
   magic = msRead32(m);
@@ -276,13 +293,20 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   for (x = 0; x < cpoolcnt - 1; ++x) {
     tag = msRead8(m);
     switch (tag) {
+      case TAG_STRING:
+        pist = (JVMConstPoolString*)malloc(sizeof(JVMConstPoolString));
+        pool[x] = (JVMConstPoolItem*)pist;
+        pist->stringIndex = msRead16(m);
+        pist->hdr.type = TAG_STRING;
+        debugf("TAG_STRING stringIndex:%u\n", pist->stringIndex);
+        break;
       case TAG_METHODREF:
 	pimr = (JVMConstPoolMethodRef*)malloc(sizeof(JVMConstPoolMethodRef));
 	pool[x] = (JVMConstPoolItem*)pimr;
 	pimr->nameIndex = msRead16(m);
 	pimr->descIndex = msRead16(m);
 	pimr->hdr.type = TAG_METHODREF;
-	fprintf(stderr, "nameIndex:%u descIndex:%u\n", pimr->nameIndex, pimr->descIndex);
+	debugf("TAG_METHODREF nameIndex:%u descIndex:%u\n", pimr->nameIndex, pimr->descIndex);
 	break;
       case TAG_CLASSINFO:
 	pici = (JVMConstPoolClassInfo*)malloc(sizeof(JVMConstPoolClassInfo));
@@ -298,7 +322,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	msRead(m, piu8->size, piu8->string);
 	piu8->string[piu8->size] = 0;
 	piu8->hdr.type = TAG_UTF8;
-	fprintf(stderr, "TAG_UTF8: size:%u string:%s\n", piu8->size, piu8->string);
+	debugf("TAG_UTF8: size:%u string:%s\n", piu8->size, piu8->string);
 	break;
       case TAG_NAMEANDTYPE:
 	pint = (JVMConstPoolNameAndType*)malloc(sizeof(JVMConstPoolNameAndType));
@@ -306,7 +330,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	pint->nameIndex = msRead16(m);
 	pint->descIndex = msRead16(m);
 	pint->hdr.type = TAG_NAMEANDTYPE;
-	fprintf(stderr, "TAG_NAMEANDTYPE: nameIndex:%u descIndex:%u\n", pint->nameIndex,
+	debugf("TAG_NAMEANDTYPE: nameIndex:%u descIndex:%u\n", pint->nameIndex,
 		pint->descIndex);
 	break;
       case TAG_FIELDREF:
@@ -315,11 +339,11 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	pifr->classIndex = msRead16(m);
 	pifr->nameAndTypeIndex = msRead16(m);
 	pifr->hdr.type = TAG_FIELDREF;
-	fprintf(stderr, "classIndex:%u nameAndTypeIndex:%u\n", pifr->classIndex, 
+	debugf("classIndex:%u nameAndTypeIndex:%u\n", pifr->classIndex,
 		pifr->nameAndTypeIndex);
 	break;
       default:
-	fprintf(stderr, "unknown tag %u in constant pool\n\n", tag);
+	debugf("unknown tag %u in constant pool\n\n", tag);
 	exit(-1);
     }
   }
@@ -415,7 +439,7 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
     a = jbclass->jclass->thisClass;
     b = (JVMConstPoolClassInfo*)jbclass->jclass->pool[a - 1];
     c = (JVMConstPoolUtf8*)jbclass->jclass->pool[b->nameIndex - 1];
-    printf("looking for class [%s]=?[%s]\n", className, c->string);
+    debugf("looking for class [%s]=?[%s]\n", className, c->string);
     if (strcmp(c->string, className) == 0)
       return jbclass->jclass;
   }
@@ -423,6 +447,7 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
     This is where you want to do code to search externally to the
     bundle, and if needed load the missing class into memory.
   */
+  debugf("class [%s] not found in bundle!\n", className);
   return 0;
 }
 
@@ -436,12 +461,12 @@ JVMMethod* jvm_FindMethodInClass(JVMClass *jclass, const char *methodName, const
     a = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].nameIndex - 1];
     /// get method type
     b = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].descIndex - 1];
-    fprintf(stderr, "findmeth:%s%s\n", a->string, b->string);
+    debugf("findmeth:[%s:%s]==[%s:%s]\n", methodName, methodType, a->string, b->string);
     if (strcmp(a->string, methodName) == 0)
       if (strcmp(b->string, methodType) == 0)
         return &jclass->methods[x];
   }
-  fprintf(stderr, "could not find method %s of type %s\n", methodName, methodType);
+  debugf("could not find method %s of type %s\n", methodName, methodType);
   return 0;
 }
 
@@ -497,16 +522,25 @@ static int g_dbg_ec = 0;
 int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                          const char *methodName, const char *methodType,
                          JVMLocal *_locals, uint8 localCnt, JVMLocal *_result) {
+  /// this is mostly long lived things so becareful
+  /// when using one to do some work it might be
+  /// holding a long term value
   JVMMethod                     *method;
   JVMConstPoolUtf8              *a;
-  int                           x, y;
+  int                           x;
   JVMLocal                      *locals;
   uint32                        codesz;
   uint8                         *code;
   uint8                         opcode;
   JVMStack                      stack;
-  JVMLocal                      result;
+  int32                         error;
 
+  /// mostly temporary stuff.. used in small blocks
+  /// check around but should be safe to use here
+  /// and there for small scopes
+  JVMLocal                      result;
+  int                           y, w, z;
+  int                           eresult;
   JVMClass                      *_jclass;
   JVMObject                     *_jobject;
   JVMMethod                     *_method;
@@ -526,8 +560,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   //}
   
   jvm_StackInit(&stack, 1024);
+  error = 0;
   
-  printf("executing %s\n", methodName);
+  debugf("executing %s\n", methodName);
   /// -----------------------------------------------------
   /// i think there is a way to determine how much local
   /// variable space is needed... but for now this will work
@@ -538,7 +573,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   for (x = 0; x < localCnt; ++x) {
     locals[x].data = _locals[x].data;
     locals[x].flags = _locals[x].flags;
-    printf("$$data:%u flags:%u\n", _locals[x].data, _locals[x].flags);
+    debugf("$$data:%u flags:%u\n", _locals[x].data, _locals[x].flags);
     if (locals[x].flags & JVM_STACK_ISOBJECTREF)
       ((JVMObject*)locals[x].data)->stackCnt++;
   }
@@ -550,7 +585,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// find method specifiee
   method = jvm_FindMethodInClass(jclass, methodName, methodType);
   if (!method) {
-    fprintf(stderr, "JVM_ERROR_METHODNOTFOUND");
+    debugf("JVM_ERROR_METHODNOTFOUND\n");
     return JVM_ERROR_METHODNOTFOUND;
   }
   /// find code attribute
@@ -563,20 +598,195 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     }
   }
 
-  printf("execute code\n");
+  debugf("execute code\n");
   /// execute code
   for (x = 0; x < codesz;) {
     opcode = code[x];
-    printf("opcode(%u/%u):%x\n", x, codesz, opcode);
+    debugf("opcode(%u/%u):%x\n", x, codesz, opcode);
     switch (opcode) {
       /// nop: no operation
       case 0:
         x += 2;
         break;
+      /*
+      /// ldc: push a constant #index from a constant pool (string, int, or float) onto the stack
+      case 0x12:
+        y = code[x+1];
+        /// determine what this index refers too
+        switch (jclass->pool[y]->type) {
+          case TAG_STRING:
+            /// we need to create a String object
+            // create string object and create byte array and set field
+            // ... then call String initializer.. maybe??? little confused here
+          case TAG_INTEGER:
+            jclass->pool
+            jvm_StackPush(&stack, 
+          case TAG_FLOAT:
+        }
+        x += 2;
+        break;
+      /// ldc_w:
+      /// ldc2_w:
+      */
+      /// iconst_m1
+      case 0x02:
+        jvm_StackPush(&stack, -1, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iconst_0
+      case 0x03:
+        jvm_StackPush(&stack, 0, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iconst_1
+      case 0x04:
+        jvm_StackPush(&stack, 1, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iconst_2
+      case 0x05:
+        jvm_StackPush(&stack, 2, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iconst_3
+      case 0x06:
+        jvm_StackPush(&stack, 3, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iconst_4
+      case 0x07:
+        jvm_StackPush(&stack, 4, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iconst_5
+      case 0x08:
+        jvm_StackPush(&stack, 5, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// astore
+      case 0x3a:
+        y = code[x+1];
+        jvm_StackPop(&stack, &result);
+        locals[y].data = result.data;
+        locals[y].flags = result.flags;
+        x += 2;
+        break;
+      /// astore_0
+      case 0x4b:
+        jvm_StackPop(&stack, &result);
+        locals[0].data = result.data;
+        locals[0].flags = result.flags;
+        x += 1;
+        break;
+      /// astore_1
+      case 0x4c:
+        jvm_StackPop(&stack, &result);
+        locals[1].data = result.data;
+        locals[1].flags = result.flags;
+        x += 1;
+        break;
+      /// astore_2
+      case 0x4d:
+        jvm_StackPop(&stack, &result);
+        locals[2].data = result.data;
+        locals[2].flags = result.flags;
+        x += 1;
+        break;
+      /// astore_3
+      case 0x4e:
+        jvm_StackPop(&stack, &result);
+        locals[3].data = result.data;
+        locals[3].flags = result.flags;
+        x += 1;
+        break;
+      /// iadd: add two ints
+      case 0x60:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y + w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iaload: load an int from an array
+      case 0x2e:
+      /// iastore: store an int into an array
+      case 0x4f:
+        if (opcode == 0x4f) {
+          jvm_StackPop(&stack, &result);
+          y = result.data;
+        }
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPop(&stack, &result);
+        _jobject = (JVMObject*)result.data;
+        debugf("_jobject:%x\n", _jobject);
+        if (!_jobject) {
+          error = JVM_ERROR_NULLOBJREF;
+          break;
+        }
+        if (w >= (uint64)_jobject->class) {
+          /// error, past end of array..
+          error = JVM_ERROR_ARRAYOUTOFBOUNDS;
+          break;
+        }
+        if (opcode == 0x4f) {
+          debugf("stored %i into array index %u\n", y, w);
+          ((uint64*)_jobject->fields)[w] = y;
+        }
+        if (opcode == 0x2e)
+          jvm_StackPush(&stack, ((uint64*)_jobject->fields)[w], JVM_STACK_ISINT);
+
+        x += 1;
+        break;
+      /// arraylength
+      case 0xbe:
+        jvm_StackPop(&stack, &result);
+        _jobject = (JVMObject*)result.data;
+        debugf("_jobject:%x\n", _jobject);
+        if (!_jobject) {
+          error = JVM_ERROR_NULLOBJREF;
+          break;
+        }
+        jvm_StackPush(&stack, (uint64)_jobject->class, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// newarray
+      case 0xbc:
+        /// hack around JVMObject so reference counting
+        /// logic can still work, might need some unions
+        /// to clean up dirty code below --kmcguire
+        y = code[x+1];
+        // JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF
+        _jobject = (JVMObject*)malloc(sizeof(JVMObject));
+        _jobject->next = jvm->objects;
+        jvm->objects = _jobject;
+        _jobject->class = 0;
+        _jobject->fields = 0;
+        _jobject->refs = 0;
+        _jobject->stackCnt = 1;
+
+        jvm_StackPop(&stack, &result);
+        argcnt = result.data;
+
+        /// not very helpful in memory usage
+        _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
+        _jobject->class = (JVMClass*)argcnt;
+        jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        debugf("just created array\n");
+        jvm_DebugStack(&stack);
+        x += 2;
+        break;
+      /// sipush: push a short onto the stack
+      case 0x11:
+        y = code[x+1] << 8 | code[x+2];
+        jvm_StackPush(&stack, y, JVM_STACK_ISSHORT);
+        x += 3;
+        break;
       /// bipush: push a byte onto the stack as an integer
       case 0x10:
         y = code[x+1];
-        jvm_StackPush(&stack, y, 0);
+        jvm_StackPush(&stack, y, JVM_STACK_ISINT);
         x += 2;
         break;
       /// pop: discard top value on stack
@@ -586,7 +796,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           ((JVMObject*)result.data)->stackCnt--;
         x += 1;
         break;
-      /// aload
+      /// aload: load a reference onto the stack from local variable 'y'
       case 0x19:
         y = code[x+1];
         jvm_StackPush(&stack, locals[y].data, locals[y].flags);
@@ -642,7 +852,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
          /// if java/lang/Object just pretend we did
          if (strcmp(mclass, "java/lang/Object") == 0) {
-          printf("caught java/lang/Object call and skipped it\n");
+          debugf("caught java/lang/Object call and skipped it\n");
           x +=3 ;
           break;
          }
@@ -650,7 +860,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          d = (JVMConstPoolNameAndType*)jclass->pool[b->descIndex - 1];
          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
          // a->string is the method of the class
+         debugf("looking!!!\n");
          _jclass = jvm_FindClassInBundle(bundle, mclass);
+         debugf("_jclass:%x\n", _jclass);
+         if (!_jclass) {
+           debugf("for method call can not find class [%s]\n", mclass);
+           error = JVM_ERROR_CLASSNOTFOUND;
+           break;
+         }
 
          mmethod = a->string;
 
@@ -664,18 +881,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
            c = (JVMConstPoolClassInfo*)_jclass->pool[_jclass->superClass - 1];
            a = (JVMConstPoolUtf8*)_jclass->pool[c->nameIndex - 1];
            _jclass = jvm_FindClassInBundle(bundle, a->string);
-           if (jclass == 0)
+           if (!_jclass)
            {
-             fprintf(stderr, "Could not find super class in bundle!?!\n");
-             exit(-9);
+             error = JVM_ERROR_SUPERMISSING;
+             debugf("Could not find super class in bundle!?!\n");
+             break;
            }
          }
-         printf("class with implementation is %s\n", a->string);
+         debugf("class with implementation is %s\n", a->string);
          
          
          argcnt = jvm_GetMethodTypeArgumentCount(mtype);
          
-         printf("invokespecial: %s:%s[%u] in %s\n", mmethod, mtype, argcnt, mclass);
+         debugf("invokespecial: %s:%s[%u] in %s\n", mmethod, mtype, argcnt, mclass);
 
          jvm_DebugStack(&stack);
          
@@ -689,8 +907,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          /// pop object reference from stack
          jvm_StackPop(&stack, &result);
          if (!(result.flags & JVM_STACK_ISOBJECTREF)) {
-           fprintf(stderr, "object from stack is not object reference!");
-           exit(-8);
+           error = JVM_ERROR_NOTOBJREF;
+           debugf("object from stack is not object reference!");
+           break;
          }
          
          /// stays the same since we poped it then placed it into locals
@@ -699,22 +918,26 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          _locals[0].data = result.data;
          _locals[0].flags = result.flags;
 
-         printf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
-         printf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
+         debugf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
+         debugf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
 
-         printf("########################");
-         jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, locals, argcnt + 1, &result);
+         debugf("------------------------------------------\n");
+         eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, locals, argcnt + 1, &result);
          free(_locals);
 
-         printf("@@@@@@@@@@@%s\n", mtype);
+         if (eresult < 0) {
+           return eresult;
+         }
+
+         debugf("@@@@@@@@@@@%s\n", mtype);
 
          /// need to know if it was a void return or other
          if (!jvm_IsMethodReturnTypeVoid(mtype)) {
           /// push result onto stack
-          printf("return type not void!\n");
+          debugf("return type not void!\n");
           jvm_StackPush(&stack, result.data, result.flags);
          } else {
-           printf("return type void..\n");
+           debugf("return type void..\n");
          }
          
          x += 3;
@@ -722,7 +945,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ireturn: return integer from method
       case 0xac:
       /// return: void from method
-      printf("return integer found\n");
+      debugf("return integer found\n");
       case 0xb1:
         if (opcode == 0xac)
         {
@@ -734,32 +957,54 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         
          /// need to go through and decrement reference count of objects on stack and local
          /// the stack should be empty right? maybe not...
-         printf("checking for stuff left on stack after method return..\n");
-         while (jvm_StackMore(&stack)) {
-           jvm_StackPop(&stack, &result);
-           if (result.flags & JVM_STACK_ISOBJECTREF) {
-             fprintf(stderr, "function return void decrement stack object ref %u\n", ((JVMObject*)result.data)->stackCnt);
-             ((JVMObject*)result.data)->stackCnt--;
-           }
-         }
-         printf("checking for stuff left in local variables after method return..\n");
-         /// also do local variables the same, decrement obj references
-         for (y = 0; y < 256; ++y) {
-           if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
-              fprintf(stderr, "function return void decrement local object ref %u\n", ((JVMObject*)locals[y].data)->stackCnt);
-              ((JVMObject*)locals[y].data)->stackCnt--;
-           }
-         }
-         printf("actually returning from method..\n");
+         debugf("scrubing stack and locals..\n");
+         jvm_ScrubStack(&stack);
+         debugf("here\n");
+         jvm_ScrubLocals(locals);
+         debugf("actually returning from method..\n");
+         
          return JVM_SUCCESS;
       default:
-        fprintf(stderr, "unknown opcode %x\n", opcode);
+        debugf("unknown opcode %x\n", opcode);
         exit(-3);
         return JVM_ERROR_UNKNOWNOPCODE;
+    }
+    jvm_DebugStack(&stack);
+    debugf("error:%i\n", error);
+    /// we encountered an error condition which could be
+    /// handled by an exception so we setup for it here
+    if (error < 0) {
+      /// cleanup locals and stack
+      debugf("got runtime error -- scrubing locals and stack\n");
+      jvm_ScrubStack(&stack);
+      jvm_ScrubLocals(locals);
+      /// throw exception onto the stack
+      debugf("A run-time exception occured as type %i\n", error);
+      exit(-3);
+      return error;
     }
   }
   
   return JVM_SUCCESS;
+}
+void jvm_ScrubLocals(JVMLocal *locals) {
+  int           y;
+  for (y = 0; y < 256; ++y) {
+    if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
+      debugf("function return void decrement local object ref %u\n", ((JVMObject*)locals[y].data)->stackCnt);
+      ((JVMObject*)locals[y].data)->stackCnt--;
+    }
+  }
+}
+void jvm_ScrubStack(JVMStack *stack) {
+  JVMLocal              result;
+  while (jvm_StackMore(stack)) {
+    jvm_StackPop(stack, &result);
+    if (result.flags & JVM_STACK_ISOBJECTREF) {
+      debugf("function return void decrement stack object ref %u\n", ((JVMObject*)result.data)->stackCnt);
+      ((JVMObject*)result.data)->stackCnt--;
+    }
+  }
 }
 
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out) {
@@ -770,10 +1015,13 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   
   *out = 0;
   /// find class and create instance
-  printf("create object with class %s\n", className);
+  debugf("create object with class %s\n", className);
   jclass = jvm_FindClassInBundle(bundle, className);
   if (!jclass)
+  {
+    debugf("class not found!\n");
     return JVM_ERROR_CLASSNOTFOUND;
+  }
   jobject = (JVMObject*)malloc(sizeof(JVMObject));
   *out = jobject;
   if (!jobject)
@@ -830,6 +1078,21 @@ int main(int argc, char *argv[])
   int                   result;
   JVMLocal              jvm_result;
 
+  buf = jvm_ReadWholeFile("./java/lang/Object.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
+
+  buf = jvm_ReadWholeFile("./java/lang/String.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
+  
+  buf = jvm_ReadWholeFile("Peach.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
+  
   buf = jvm_ReadWholeFile("Apple.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
@@ -847,7 +1110,11 @@ int main(int argc, char *argv[])
 
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
-  jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
-  printf("done! result.data:%lu result.flags:%u\n", jvm_result.data, jvm_result.flags);
+  result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
+  if (result < 0) {
+    debugf("error occured in execution somewhere code:%i\n", result);
+    return -1;
+  }
+  debugf("done! result.data:%lu result.flags:%u\n", jvm_result.data, jvm_result.flags);
   return 1;
 }
