@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <string.h>
+#include <stdlib.h>
 
 typedef unsigned long long int  uint64;
 typedef signed long long int    int64;
@@ -10,6 +11,7 @@ typedef unsigned char           uint8;
 typedef signed int              int32;
 typedef signed short            int16;
 typedef signed char             int8;
+typedef uint64                  uintptr;
 
 #define JVM_SUCCESS                      1
 #define JVM_ERROR_METHODNOTFOUND        -1
@@ -20,6 +22,7 @@ typedef signed char             int8;
 #define JVM_ERROR_NOTOBJREF             -6
 #define JVM_ERROR_SUPERMISSING          -7
 #define JVM_ERROR_NULLOBJREF            -8
+#define JVM_ERROR_NOCODE                -9
 /*
   I have yet to use the other flags. Currently,
   I am using JVM_STACK_ISOBJECTREF soley, but
@@ -145,12 +148,33 @@ typedef struct _JVMAttribute {
   uint8			*info;
 } JVMAttribute;
 
+typedef struct _JVMExceptionTable {
+  uint16                pcStart;
+  uint16                pcEnd;
+  uint16                pcHandler;
+  uint16                catchType;
+} JVMExceptionTable;
+
+typedef struct _JVMCodeAttribute {
+  uint16                attrNameIndex;
+  uint32                attrLength;
+  uint16                maxStack;
+  uint16                maxLocals;
+  uint32                codeLength;
+  uint8                 *code;
+  uint16                eTableCount;
+  JVMExceptionTable     *eTable;
+  uint16                attrsCount;
+  JVMAttribute          *attrs;
+} JVMCodeAttribute;
+
 typedef struct _JVMMethod {
   uint16		accessFlags;
   uint16		nameIndex;
   uint16		descIndex;
   uint16		attrCount;
   JVMAttribute		*attrs;
+  JVMCodeAttribute      *code;
 } JVMMethod;
 
 typedef struct _JVMClass {
@@ -266,7 +290,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   uint8				tag;
   JVMConstPoolItem		**pool;
   JVMConstPoolItem		*pi;
-  int				x, y;
+  int				x, y, z;
   JVMConstPoolMethodRef		*pimr;
   JVMConstPoolClassInfo		*pici;
   JVMConstPoolUtf8		*piu8;
@@ -274,6 +298,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   JVMConstPoolFieldRef		*pifr;
   JVMConstPoolString            *pist;
   JVMClass			*class;
+  uint8                         *string;
   
   magic = msRead32(m);
   vmin = msRead16(m);
@@ -392,6 +417,8 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   class->methodCnt = msRead16(m);
   class->methods = (JVMMethod*)malloc(sizeof(JVMMethod) * class->methodCnt);
   for (x = 0; x < class->methodCnt; ++x) {
+    /// in the event it has no actual code attribute
+    class->methods[x].code = 0;
     class->methods[x].accessFlags = msRead16(m);
     class->methods[x].nameIndex = msRead16(m);
     class->methods[x].descIndex = msRead16(m);
@@ -401,13 +428,55 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     for (y = 0; y < class->methods[x].attrCount; ++y) {
       class->methods[x].attrs[y].nameIndex = msRead16(m);
       class->methods[x].attrs[y].length = msRead32(m);
-      class->methods[x].attrs[y].info = (uint8*)malloc(
-	      class->methods[x].attrs[y].length);
-      fprintf(stderr, "name:%s\n", 
-	      ((JVMConstPoolUtf8*)class->pool[class->methods[x].attrs[y].nameIndex - 1])->string
-	      );
-      fprintf(stderr, "attrlen:%u\n", class->methods[x].attrs[y].length);
-      msRead(m, class->methods[x].attrs[y].length, class->methods[x].attrs[y].info);
+
+      string = ((JVMConstPoolUtf8*)class->pool[class->methods[x].attrs[y].nameIndex - 1])->string;
+      debugf("name:%s\n", string);
+      debugf("attrlen:%u\n", class->methods[x].attrs[y].length);
+      if (strcmp(string, "Code") == 0) {
+        /// special attribute we need to fully parse out
+        class->methods[x].code = (JVMCodeAttribute*)malloc(sizeof(JVMCodeAttribute));
+        class->methods[x].code->attrNameIndex = class->methods[x].attrs[y].nameIndex;
+        class->methods[x].code->attrLength = class->methods[x].attrs[y].length;
+        /// not used but lets set it up to be safe incase accidentally accessed
+        class->methods[x].attrs[y].nameIndex = 0;
+        class->methods[x].attrs[y].length = 0;
+        class->methods[x].attrs[y].info = 0;
+        /// read parameters
+        class->methods[x].code->maxStack = msRead16(m);
+        class->methods[x].code->maxLocals = msRead16(m);
+        class->methods[x].code->codeLength = msRead32(m);
+        /// read code segment
+        class->methods[x].code->code = (uint8*)malloc(class->methods[x].code->codeLength);
+        msRead(m, class->methods[x].code->codeLength, class->methods[x].code->code);
+        /// read exception table
+        class->methods[x].code->eTableCount = msRead16(m);
+        class->methods[x].code->eTable = 0;
+        if (class->methods[x].code->eTableCount) {
+          class->methods[x].code->eTable = (JVMExceptionTable*)malloc(sizeof(JVMExceptionTable) * class->methods[x].code->eTableCount);
+          msRead(m, class->methods[x].code->eTableCount * sizeof(JVMExceptionTable), (uint8*)class->methods[x].code->eTable);
+        }
+        debugf("eTableCount:%u\n", class->methods[x].code->eTableCount);
+        class->methods[x].code->attrsCount = msRead16(m);
+        class->methods[x].code->attrs = 0;
+        if (class->methods[x].code->attrsCount) {
+          class->methods[x].code->attrs = (JVMAttribute*)malloc(sizeof(JVMAttribute) * class->methods[x].code->attrsCount);
+          /// read attributes for just this code not method?
+          debugf("class->methods[x].code->attrsCount:%u\n", class->methods[x].code->attrsCount);
+          for (z = 0; z < class->methods[x].code->attrsCount; ++z) {
+            debugf("yyyy\n");
+            class->methods[x].code->attrs[z].nameIndex = msRead16(m);
+            class->methods[x].code->attrs[z].length = msRead32(m);
+            class->methods[x].code->attrs[z].info = (uint8*)malloc(class->methods[x].code->attrs[z].length);
+            msRead(m, class->methods[x].code->attrs[z].length, class->methods[x].code->attrs[z].info);
+            debugf("xxxx\n");
+          }
+        }
+        debugf("done reading code attribute");
+      } else {
+        /// standard operation for attributes we do not really understand
+        class->methods[x].attrs[y].info = (uint8*)malloc(class->methods[x].attrs[y].length);
+        msRead(m, class->methods[x].attrs[y].length, class->methods[x].attrs[y].info);
+      }
     }
   }
   /*
@@ -519,6 +588,26 @@ int jvm_GetMethodTypeArgumentCount(const char *typestr) {
 
 static int g_dbg_ec = 0;
 
+void jvm_ScrubLocals(JVMLocal *locals) {
+  int           y;
+  for (y = 0; y < 256; ++y) {
+    if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
+      ((JVMObject*)locals[y].data)->stackCnt--;
+      debugf("SCRUB LOCALS ref:%lx refcnt:%i\n", locals[y].data, ((JVMObject*)locals[y].data)->stackCnt);
+    }
+  }
+}
+void jvm_ScrubStack(JVMStack *stack) {
+  JVMLocal              result;
+  while (jvm_StackMore(stack)) {
+    jvm_StackPop(stack, &result);
+    if (result.flags & JVM_STACK_ISOBJECTREF) {
+      ((JVMObject*)result.data)->stackCnt--;
+      debugf("SCRUB STACK ref:%lx refcnt:%u\n", result.data, ((JVMObject*)result.data)->stackCnt);
+    }
+  }
+}
+
 int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                          const char *methodName, const char *methodType,
                          JVMLocal *_locals, uint8 localCnt, JVMLocal *_result) {
@@ -552,7 +641,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   uint8                         *mmethod;
   uint8                         *mtype;
   uint8                         *tmp;
-
+  
   //g_dbg_ec++;
   //if (g_dbg_ec == 3) {
   //  printf("g_dbg_ec=%u\n", g_dbg_ec);
@@ -570,17 +659,17 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     debugf("JVM_ERROR_METHODNOTFOUND\n");
     return JVM_ERROR_METHODNOTFOUND;
   }
-  
-  /// find code attribute
-  for (x = 0; x < method->attrCount; ++x) {
-    a = (JVMConstPoolUtf8*)jclass->pool[method->attrs[x].nameIndex - 1];
-    if (strcmp(a->string, "Code") == 0) {
-      code = method->attrs[x].info;
-      codesz = method->attrs[x].length;
-      break;
-    }
+
+  /// do we have code? hopefully...
+  if (!method->code) {
+    debugf("JVM_ERROR_NOCODE\n");
+    return JVM_ERROR_NOCODE;
   }
   
+  code = method->code->code;
+  codesz = method->code->codeLength;
+  
+  debugf("method has code(%lx) of length %u\n", code, codesz);
   /// -----------------------------------------------------
   /// i think there is a way to determine how much local
   /// variable space is needed... but for now this will work
@@ -784,7 +873,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
         /// not very helpful in memory usage
         _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
-        _jobject->class = (JVMClass*)argcnt;
+        _jobject->class = (JVMClass*)(uintptr)argcnt;
         jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
         debugf("just created array\n");
         jvm_DebugStack(&stack);
@@ -1014,25 +1103,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   }
   
   return JVM_SUCCESS;
-}
-void jvm_ScrubLocals(JVMLocal *locals) {
-  int           y;
-  for (y = 0; y < 256; ++y) {
-    if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
-      ((JVMObject*)locals[y].data)->stackCnt--;
-      debugf("SCRUB LOCALS ref:%lx refcnt:%i\n", locals[y].data, ((JVMObject*)locals[y].data)->stackCnt);
-    }
-  }
-}
-void jvm_ScrubStack(JVMStack *stack) {
-  JVMLocal              result;
-  while (jvm_StackMore(stack)) {
-    jvm_StackPop(stack, &result);
-    if (result.flags & JVM_STACK_ISOBJECTREF) {
-      ((JVMObject*)result.data)->stackCnt--;
-      debugf("SCRUB STACK ref:%lx refcnt:%u\n", result.data, ((JVMObject*)result.data)->stackCnt);
-    }
-  }
 }
 
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out) {
