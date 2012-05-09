@@ -17,16 +17,22 @@ typedef signed char             int8;
 #define JVM_ERROR_UNKNOWNOPCODE         -3
 #define JVM_ERROR_CLASSNOTFOUND         -4
 
+/*
+  I have yet to use the other flags. Currently,
+  I am using JVM_STACK_ISOBJECTREF soley, but
+  the others are here incase I realized in my
+  design I need to track the exact types better.
+*/
 #define JVM_STACK_ISOBJECTREF   0x00000001
-#define JVM_STACK_ISBYTE        0x00000002
-#define JVM_STACK_ISCHAR        0x00000003
-#define JVM_STACK_ISDOUBLE      0x00000004
-#define JVM_STACK_ISFLOAT       0x00000005
-#define JVM_STACK_ISINT         0x00000006
-#define JVM_STACK_ISLONG        0x00000007
-#define JVM_STACK_ISSHORT       0x00000008
-#define JVM_STACK_ISBOOL        0x00000009
-#define JVM_STACK_ISARRAY       0x00000010
+#define JVM_STACK_ISBYTE        0x00000010
+#define JVM_STACK_ISCHAR        0x00000020
+#define JVM_STACK_ISDOUBLE      0x00000030
+#define JVM_STACK_ISFLOAT       0x00000040
+#define JVM_STACK_ISINT         0x00000050
+#define JVM_STACK_ISLONG        0x00000060
+#define JVM_STACK_ISSHORT       0x00000070
+#define JVM_STACK_ISBOOL        0x00000080
+#define JVM_STACK_ISARRAY       0x00000090
 
 typedef struct _JVMStack {
   uint64                *data;
@@ -51,15 +57,6 @@ int jvm_StackMore(JVMStack *stack) {
   return stack->pos;
 }
 
-void jvm_StackPush(JVMStack *stack, uint64 value, uint32 flags) {
-  stack->flags[stack->pos] = flags;
-  stack->data[stack->pos] = value;
-  stack->pos++;
-  printf("stack push pos:%u\n", stack->pos);
-  printf("value:%u flags:%u\n", value, flags);
-  jvm_DebugStack(stack);
-}
-
 void jvm_DebugStack(JVMStack *stack) {
   int           x;
 
@@ -68,6 +65,19 @@ void jvm_DebugStack(JVMStack *stack) {
   {
     printf("STACK[%u]: %u:%u\n", x, stack->data[x], stack->flags[x]);
   }
+}
+
+void jvm_StackDiscardTop(JVMStack *stack) {
+  stack->pos--;
+}
+
+void jvm_StackPush(JVMStack *stack, uint64 value, uint32 flags) {
+  stack->flags[stack->pos] = flags;
+  stack->data[stack->pos] = value;
+  stack->pos++;
+  printf("stack push pos:%u\n", stack->pos);
+  printf("value:%u flags:%u\n", value, flags);
+  jvm_DebugStack(stack);
 }
 
 void jvm_StackPop(JVMStack *stack, JVMLocal *local) {
@@ -518,7 +528,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   jvm_StackInit(&stack, 1024);
   
   printf("executing %s\n", methodName);
-  
+  /// -----------------------------------------------------
+  /// i think there is a way to determine how much local
+  /// variable space is needed... but for now this will work
+  /// -----------------------------------------------------
   /// 255 should be maximum local addressable
   locals = (JVMLocal*)malloc(sizeof(JVMLocal) * 256);
   /// copy provided arguments into locals
@@ -528,6 +541,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     printf("$$data:%u flags:%u\n", _locals[x].data, _locals[x].flags);
     if (locals[x].flags & JVM_STACK_ISOBJECTREF)
       ((JVMObject*)locals[x].data)->stackCnt++;
+  }
+  /// zero the remainder of the locals
+  for (; x < 256; ++x) {
+    locals[x].data = 0;
+    locals[x].flags = 0;
   }
   /// find method specifiee
   method = jvm_FindMethodInClass(jclass, methodName, methodType);
@@ -555,39 +573,52 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0:
         x += 2;
         break;
+      /// bipush: push a byte onto the stack as an integer
+      case 0x10:
+        y = code[x+1];
+        jvm_StackPush(&stack, y, 0);
+        x += 2;
+        break;
+      /// pop: discard top value on stack
+      case 0x57:
+        jvm_StackPop(&stack, &result);
+        if (result.flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)result.data)->stackCnt--;
+        x += 1;
+        break;
       /// aload
       case 0x19:
         y = code[x+1];
         jvm_StackPush(&stack, locals[y].data, locals[y].flags);
-        if (locals[x].flags == JVM_STACK_ISOBJECTREF)
+        if (locals[x].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[0].data)->stackCnt++;
         x += 2;
         break;
       /// aload_0: load a reference onto the stack from local variable 0
       case 0x2a:
         jvm_StackPush(&stack, locals[0].data, locals[0].flags);
-        if (locals[0].flags == JVM_STACK_ISOBJECTREF)
+        if (locals[0].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[0].data)->stackCnt++;
         x += 1;
         break;
       /// aload_1
       case 0x2b:
         jvm_StackPush(&stack, locals[1].data, locals[1].flags);
-        if (locals[1].flags == JVM_STACK_ISOBJECTREF)
+        if (locals[1].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[1].data)->stackCnt++;
         x += 1;
         break;
       /// aload_2
       case 0x2c:
         jvm_StackPush(&stack, locals[2].data, locals[2].flags);
-        if (locals[2].flags == JVM_STACK_ISOBJECTREF)
+        if (locals[2].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[2].data)->stackCnt++;
         x += 1;
         break;
       /// aload_3
       case 0x2d:
         jvm_StackPush(&stack, locals[3].data, locals[3].flags);
-        if (locals[3].flags == JVM_STACK_ISOBJECTREF)
+        if (locals[3].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[3].data)->stackCnt++;
         x += 1;
         break;
@@ -668,6 +699,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          _locals[0].data = result.data;
          _locals[0].flags = result.flags;
 
+         printf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
+         printf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
+
          printf("########################");
          jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, locals, argcnt + 1, &result);
          free(_locals);
@@ -685,9 +719,22 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          
          x += 3;
          break;
+      /// ireturn: return integer from method
+      case 0xac:
       /// return: void from method
+      printf("return integer found\n");
       case 0xb1:
+        if (opcode == 0xac)
+        {
+          /// no check if objref and decrement refcnt because it
+          /// is going right back on the stack we were called from
+          jvm_DebugStack(&stack);
+          jvm_StackPop(&stack, _result);
+        }
+        
          /// need to go through and decrement reference count of objects on stack and local
+         /// the stack should be empty right? maybe not...
+         printf("checking for stuff left on stack after method return..\n");
          while (jvm_StackMore(&stack)) {
            jvm_StackPop(&stack, &result);
            if (result.flags & JVM_STACK_ISOBJECTREF) {
@@ -695,16 +742,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
              ((JVMObject*)result.data)->stackCnt--;
            }
          }
+         printf("checking for stuff left in local variables after method return..\n");
          /// also do local variables the same, decrement obj references
          for (y = 0; y < 256; ++y) {
            if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
-              fprintf(stderr, "function return void decrement local object ref %u\n", ((JVMObject*)result.data)->stackCnt);
-              ((JVMObject*)result.data)->stackCnt--;
+              fprintf(stderr, "function return void decrement local object ref %u\n", ((JVMObject*)locals[y].data)->stackCnt);
+              ((JVMObject*)locals[y].data)->stackCnt--;
            }
          }
+         printf("actually returning from method..\n");
          return JVM_SUCCESS;
       default:
         fprintf(stderr, "unknown opcode %x\n", opcode);
+        exit(-3);
         return JVM_ERROR_UNKNOWNOPCODE;
     }
   }
@@ -797,6 +847,7 @@ int main(int argc, char *argv[])
 
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
-  jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()V", &locals[0], 1, &jvm_result);
+  jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
+  printf("done! result.data:%lu result.flags:%u\n", jvm_result.data, jvm_result.flags);
   return 1;
 }
