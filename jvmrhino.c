@@ -720,6 +720,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ldc_w:
       /// ldc2_w:
       */
+      /// goto
+      case 0xa7:
+        y = code[x+1] << 8 | code[x+2];
+        debugf("goto:%u\n", y);
+        x = x + y;
+        break;
       /// iconst_m1
       case 0x02:
         jvm_StackPush(&stack, -1, JVM_STACK_ISINT);
