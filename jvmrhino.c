@@ -23,6 +23,7 @@ typedef uint64                  uintptr;
 #define JVM_ERROR_SUPERMISSING          -7
 #define JVM_ERROR_NULLOBJREF            -8
 #define JVM_ERROR_NOCODE                -9
+#define JVM_ERROR_EXCEPTION             -10
 /*
   I have yet to use the other flags. Currently,
   I am using JVM_STACK_ISOBJECTREF soley, but
@@ -453,7 +454,12 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
         class->methods[x].code->eTable = 0;
         if (class->methods[x].code->eTableCount) {
           class->methods[x].code->eTable = (JVMExceptionTable*)malloc(sizeof(JVMExceptionTable) * class->methods[x].code->eTableCount);
-          msRead(m, class->methods[x].code->eTableCount * sizeof(JVMExceptionTable), (uint8*)class->methods[x].code->eTable);
+          for (z = 0; z < class->methods[x].code->eTableCount; z++) {
+            class->methods[x].code->eTable[z].pcStart = msRead16(m);
+            class->methods[x].code->eTable[z].pcEnd = msRead16(m);
+            class->methods[x].code->eTable[z].pcHandler = msRead16(m);
+            class->methods[x].code->eTable[z].catchType = msRead16(m);
+          }
         }
         debugf("eTableCount:%u\n", class->methods[x].code->eTableCount);
         class->methods[x].code->attrsCount = msRead16(m);
@@ -720,6 +726,34 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ldc_w:
       /// ldc2_w:
       */
+      /// athrow
+      case 0xbf:
+        error = JVM_ERROR_EXCEPTION;
+        x += 1;
+        break;
+      /// dup: duplicate item on top of stack
+      case 0x59:
+        jvm_StackPop(&stack, &result);
+        /// now there are two references instead of one
+        if (result.flags & JVM_STACK_ISOBJECTREF)
+          ((JVMObject*)result.data)->stackCnt++;
+        jvm_StackPush(&stack, result.data, result.flags);
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
+      /// new: create new instance of object
+      case 0xbb:
+        y = code[x+1] << 8 | code[x+2];
+        /// classinfo
+        c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
+        a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
+        error = jvm_CreateObject(jvm, bundle, a->string, &_jobject);
+        /// jump out and create exception if we can..
+        if (error < 0)
+          break;
+        jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
+        x += 3;
+        break;
       /// goto
       case 0xa7:
         y = code[x+1] << 8 | code[x+2];
@@ -1096,6 +1130,15 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       jvm_ScrubStack(&stack);
       jvm_ScrubLocals(locals);
       /// are we between an exception handler?
+      debugf("checking if inside exception handler..\n");
+      for (y = 0; y < method->code->eTableCount; ++y) {
+        debugf("  check x:%i pcStart:%i pcEnd:%i\n", x, method->code->eTable[y].pcStart, method->code->eTable[y].pcEnd);
+        if (x >= method->code->eTable[y].pcStart)
+          if (x < method->code->eTable[y].pcEnd) {
+            debugf("catchType:%i\n", jclass->pool[method->code->eTable[y].catchType - 1]->type);
+            exit(-9);
+          }
+      }
       /// if so does it handle this exception?
       /// --- if we are not or it does not then we must exit out
       /// --- into the calling function so it can perform these
@@ -1132,7 +1175,7 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
     return JVM_ERROR_OUTOFMEMORY;
   memset(*out, 0, sizeof(JVMObject));
   jobject->class = jclass;
-  jobject->stackCnt = 1;
+  jobject->stackCnt = 0;
   /// link us into global object chain
   jobject->next = jvm->objects;
   jvm->objects = jobject;
@@ -1182,13 +1225,18 @@ int main(int argc, char *argv[])
   uint32                size;
   int                   result;
   JVMLocal              jvm_result;
-
+  
   buf = jvm_ReadWholeFile("./java/lang/Object.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
 
   buf = jvm_ReadWholeFile("./java/lang/String.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
+
+  buf = jvm_ReadWholeFile("./java/lang/Exception.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
@@ -1212,7 +1260,7 @@ int main(int argc, char *argv[])
 
   /// create initial object
   result = jvm_CreateObject(&jvm, &jbundle, "Test", &jobject);
-
+  
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
   result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
