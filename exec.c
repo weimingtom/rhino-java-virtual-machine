@@ -20,10 +20,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// mostly temporary stuff.. used in small blocks
   /// check around but should be safe to use here
   /// and there for small scopes
+  int32                         _error;
   JVMLocal                      result;
   JVMLocal                      result2;
-  int                           y, w, z;
-  int                           eresult;
+  int32                         y, w, z;
+  int32                         eresult;
   JVMClass                      *_jclass;
   JVMObject                     *_jobject;
   JVMMethod                     *_method;
@@ -101,9 +102,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         /// determine what this index refers too
         switch (jclass->pool[y]->type) {
           case TAG_STRING:
-            /// we need to create a String object
-            // create string object and create byte array and set field
-            // ... then call String initializer.. maybe??? little confused here
+            /// create string object
+            jvm_CreateObject(jvm, bundle, "java/lang/String", &_jobject);
+            /// create byte array
+            _jobject->
+            /// set byte array to String field
+            
           case TAG_INTEGER:
             jclass->pool
             jvm_StackPush(&stack,
@@ -114,6 +118,26 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ldc_w:
       /// ldc2_w:
       */
+      /// checkcast
+      case 0xc0:
+        y = code[x+1] << 8 | code[x+2];
+        c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
+        a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
+
+        /// more like a stack peek..
+        jvm_StackPop(&stack, &result);
+        jvm_StackPush(&stack, result.data, result.flags);
+        
+        /// is objref the type described by Y (or can be)
+        if (!jvm_IsInstanceOf(bundle, _jobject, a->string))
+        {
+          debugf("bad cast to %s\n", a->string);
+          error = JVM_ERROR_BADCAST;
+          break;
+        }
+        debugf("good cast to %s\n", a->string);
+        x += 3;
+        break;
       /// if_icmpgt
       case 0xa4:
         y = (int16)(code[x+1] << 8 | code[x+2]);
@@ -321,13 +345,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// sipush: push a short onto the stack
       case 0x11:
-        y = code[x+1] << 8 | code[x+2];
+        y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPush(&stack, y, JVM_STACK_ISSHORT);
         x += 3;
         break;
       /// bipush: push a byte onto the stack as an integer
       case 0x10:
-        y = code[x+1];
+        y = (int8)code[x+1];
         jvm_StackPush(&stack, y, JVM_STACK_ISINT);
         x += 2;
         break;
@@ -478,7 +502,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          free(_locals);
 
          if (eresult < 0) {
-           return eresult;
+           error = eresult;
+           debugf("propagating error down the stack frames..\n");
+           break;
          }
 
          debugf("@@@@@@@@@@@%s\n", mtype);
@@ -526,11 +552,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       debugf("got exception -- scrubing locals and stack\n");
       /// these are run-time exceptions
       if (error != JVM_ERROR_EXCEPTION) {
-        error = jvm_CreateObject(jvm, bundle, "Exception", &_jobject);
+        _error = jvm_CreateObject(jvm, bundle, "java/lang/Exception", &_jobject);
         _jobject->stackCnt = 0;
-        if (error) {
+        if (_error < 0) {
           debugf("could not create object type %s!\n");
-          exit(error);
+          exit(_error);
         }
       } else {
         jvm_StackPop(&stack, &result);
@@ -565,7 +591,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// need to try to continue
       if (error < 0) {
         debugf("A run-time exception occured as type %i\n", error);
-        exit(-3);
         return error;
       }
     }
