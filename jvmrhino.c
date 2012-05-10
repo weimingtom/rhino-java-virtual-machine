@@ -338,6 +338,15 @@ void jvm_ScrubStack(JVMStack *stack) {
   }
 }
 
+/// helper function
+uint8* jvm_GetClassNameFromClass(JVMClass *c) {
+  JVMConstPoolClassInfo         *ci;
+  JVMConstPoolUtf8              *u;
+  ci = (JVMConstPoolClassInfo*)c->pool[c->thisClass - 1];
+  u = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
+  return u->string;
+}
+
 int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
   /// jvm_FindClassInBundle
   JVMClass                      *c;

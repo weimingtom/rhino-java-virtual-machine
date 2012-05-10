@@ -39,11 +39,20 @@ typedef uint64                  uintptr;
 #define JVM_ERROR_NULLOBJREF            -8
 #define JVM_ERROR_NOCODE                -9
 #define JVM_ERROR_EXCEPTION             -10
+#define JVM_ERROR_BADCAST               -11
+#define JVM_ERROR_NOTOBJORARRAY         -12
+#define JVM_ERROR_WASNOTINSTANCEOF      -13
+#define JVM_ERROR_WASPRIMITIVEARRAY     -14
+
 /*
   I have yet to use the other flags. Currently,
   I am using JVM_STACK_ISOBJECTREF soley, but
   the others are here incase I realized in my
   design I need to track the exact types better.
+
+  NATOBJECT is short for native object
+  Essentially, all method call are caught and
+  instead handed to a special function
 */
 #define JVM_STACK_ISOBJECTREF   0x00000001
 #define JVM_STACK_ISARRAYREF    0x00000002
@@ -57,6 +66,18 @@ typedef uint64                  uintptr;
 #define JVM_STACK_ISBOOL        0x00000080
 #define JVM_STACK_ISARRAY       0x00000090
 #define JVM_STACK_ISSTRING      0x000000a0
+#define JVM_STACK_ISNULL        0x000000b0
+/// special 
+#define JVM_STACK_STRING        0x00000004
+
+#define JVM_ATYPE_BYTE          8
+#define JVM_ATYPE_CHAR          5
+#define JVM_ATYPE_INT           10
+#define JVM_ATYPE_LONG          11
+#define JVM_ATYPE_FLOAT         6
+#define JVM_ATYPE_DOUBLE        7
+#define JVM_ATYPE_BOOL          4
+#define JVM_ATYPE_SHORT         9
 
 #define debugf printf("[%s:%u] ", __FUNCTION__, __LINE__); printf
 
@@ -68,7 +89,7 @@ typedef struct _JVMStack {
 } JVMStack;
 
 typedef struct _JVMLocal {
-  uint64                data;
+  int64                 data;
   uint32                flags;
 } JVMLocal;
 
@@ -201,5 +222,5 @@ int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className);
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out);
 uint8* jvm_ReadWholeFile(const char *path, uint32 *size);
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass);
-
+uint8* jvm_GetClassNameFromClass(JVMClass *c);
 #endif

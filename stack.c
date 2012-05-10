@@ -25,7 +25,7 @@ void jvm_StackDiscardTop(JVMStack *stack) {
   stack->pos--;
 }
 
-void jvm_StackPush(JVMStack *stack, uint64 value, uint32 flags) {
+void jvm_StackPush(JVMStack *stack, int64 value, uint32 flags) {
   stack->flags[stack->pos] = flags;
   stack->data[stack->pos] = value;
   stack->pos++;
