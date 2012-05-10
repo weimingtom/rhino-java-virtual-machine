@@ -21,6 +21,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// check around but should be safe to use here
   /// and there for small scopes
   JVMLocal                      result;
+  JVMLocal                      result2;
   int                           y, w, z;
   int                           eresult;
   JVMClass                      *_jclass;
@@ -115,8 +116,15 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       */
       /// if_icmpgt
       case 0xa4:
-        debugf("still writting\n");
-        exit(-9);
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result2);
+        jvm_StackPop(&stack, &result);
+        debugf("compare %i <= %i\n", result.data, result2.data);
+        if ((int64)result.data <= (int64)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
         break;
       /// athrow
       case 0xbf:
