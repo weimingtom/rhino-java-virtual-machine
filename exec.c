@@ -123,19 +123,20 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1] << 8 | code[x+2];
         c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
         a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
-
+        mclass = a->string;
+        
         /// more like a stack peek..
         jvm_StackPop(&stack, &result);
         jvm_StackPush(&stack, result.data, result.flags);
         
         /// is objref the type described by Y (or can be)
-        if (!jvm_IsInstanceOf(bundle, _jobject, a->string))
+        if (!jvm_IsInstanceOf(bundle, _jobject, mclass))
         {
-          debugf("bad cast to %s\n", a->string);
+          debugf("bad cast to %s\n", mclass);
           error = JVM_ERROR_BADCAST;
           break;
         }
-        debugf("good cast to %s\n", a->string);
+        debugf("good cast to %s\n", mclass);
         x += 3;
         break;
       /// if_icmpgt
@@ -274,35 +275,167 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPush(&stack, y + w, JVM_STACK_ISINT);
         x += 1;
         break;
+      /// ----------------------------------------------
+      /// ARRAY LOAD CODE
+      /// ----------------------------------------------
+      /// caload: load char from an array
+      case 0x34:
+      /// daload: load double from an array
+      case 0x31:
+      /// faload: load float from an array
+      case 0x30:
       /// iaload: load an int from an array
       case 0x2e:
-      /// iastore: store an int into an array
-      case 0x4f:
-        if (opcode == 0x4f) {
-          jvm_StackPop(&stack, &result);
-          y = result.data;
-        }
+      /// laload: load long from array
+      case 0x2f:
+      /// saload: load short from array
+      case 0x35:
+      /// aaload: load ref from arry
+      case 0x32:
+      /// baload: load byte/boolean from arraylength
+      case 0x33:
+        /// index
         jvm_StackPop(&stack, &result);
         w = result.data;
+        /// array ref
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
-        debugf("_jobject:%x\n", _jobject);
         if (!_jobject) {
           error = JVM_ERROR_NULLOBJREF;
           break;
         }
+
+        /// is this an object and array?
+        if (result.flags & (JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF) !=
+                           (JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF) ) {
+          /// is it not so throw an error
+          error = JVM_ERROR_NOTOBJORARRAY;
+          break;
+        }
+        
         if (w >= (uint64)_jobject->class) {
           /// error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
         }
-        if (opcode == 0x4f) {
-          debugf("stored %i into array index %u\n", y, w);
-          ((uint64*)_jobject->fields)[w] = y;
+        debugf("here\n");
+        switch(opcode) {
+          /// caload: load char from an array
+          case 0x34:
+            jvm_StackPush(&stack, ((int8*)_jobject->fields)[w], JVM_STACK_ISCHAR);
+            break;
+          /// daload: load double from an array
+          case 0x31:
+            jvm_StackPush(&stack, ((double*)_jobject->fields)[w], JVM_STACK_ISDOUBLE);
+            break;
+          /// faload: load float from an array
+          case 0x30:
+            jvm_StackPush(&stack, ((float*)_jobject->fields)[w], JVM_STACK_ISFLOAT);
+            break;
+          /// iaload: load an int from an array
+          case 0x2e:
+            jvm_StackPush(&stack, ((uint32*)_jobject->fields)[w], JVM_STACK_ISINT);
+            break;
+          /// laload: load long from array
+          case 0x2f:
+            jvm_StackPush(&stack, ((int64*)_jobject->fields)[w], JVM_STACK_ISLONG);
+            break;
+          /// saload: load short from array
+          case 0x35:
+            jvm_StackPush(&stack, ((int16*)_jobject->fields)[w], JVM_STACK_ISSHORT);
+            break;
+          /// aaload: load ref from arry
+          case 0x32:
+            jvm_StackPush(&stack, ((uint64*)_jobject->fields)[w], JVM_STACK_ISOBJECTREF);
+            break;
+          /// baload: load byte/boolean from arraylength
+          case 0x33:
+            jvm_StackPush(&stack, ((uint8*)_jobject->fields)[w], JVM_STACK_ISOBJECTREF);
+            break;
         }
-        if (opcode == 0x2e)
-          jvm_StackPush(&stack, ((uint64*)_jobject->fields)[w], JVM_STACK_ISINT);
-
+        x += 1;
+        break;
+      /// ----------------------------------------------
+      /// ARRAY STORE CODE
+      /// ----------------------------------------------
+      /// bastore: store byte/boolean in array
+      case 0x54:
+      /// aastore: store ref in array
+      case 0x53:
+      /// sastore: store short into array
+      case 0x56:
+      /// lastore: store long into an array
+      case 0x50:
+      /// dastore: store double into an array
+      case 0x52:        
+      /// fastore: store float into an array
+      case 0x51:
+      /// castore: store char into an array
+      case 0x55:
+      /// iastore: store an int into an array
+      case 0x4f:
+        /// value
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        /// index
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        /// array ref
+        jvm_StackPop(&stack, &result);
+        _jobject = (JVMObject*)result.data;
+        if (!_jobject) {
+          error = JVM_ERROR_NULLOBJREF;
+          break;
+        }
+        /// is this an object and array?
+        if (result.flags & (JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF) !=
+                           (JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF) ) {
+          /// is it not so throw an error
+          error = JVM_ERROR_NOTOBJORARRAY;
+          break;
+        }
+        
+        if (w >= (uint64)_jobject->class) {
+          /// error, past end of array..
+          error = JVM_ERROR_ARRAYOUTOFBOUNDS;
+          break;
+        }
+        switch (opcode) {
+          /// bastore: store byte/boolean in array
+          case 0x54:
+            ((uint8*)_jobject->fields)[w] = y;
+            break;
+          /// aastore: store ref in array
+          case 0x53:
+            ((uint64*)_jobject->fields)[w] = y;
+            break;
+          /// sastore: store short into array
+          case 0x56:
+            ((int16*)_jobject->fields)[w] = y;
+            break;
+          /// lastore: store long into an array
+          case 0x50:
+            ((int64*)_jobject->fields)[w] = y;
+            break;
+          /// dastore: store double into an array
+          case 0x52:
+            ((double*)_jobject->fields)[w] = y;
+            break;
+          /// fastore: store float into an array
+          case 0x51:
+            ((float*)_jobject->fields)[w] = y;
+            break;
+          /// castore: store char into an array
+          case 0x55:
+            ((int64*)_jobject->fields)[w] = y;
+            break;
+          /// iastore: store an int into an array
+          case 0x4f:
+            ((int32*)_jobject->fields)[w] = y;
+            break;
+        }        
+        //if (opcode == 0x2e)
+        //  jvm_StackPush(&stack, ((uint64*)_jobject->fields)[w], JVM_STACK_ISINT);
         x += 1;
         break;
       /// arraylength
@@ -335,10 +468,42 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPop(&stack, &result);
         argcnt = result.data;
 
-        /// not very helpful in memory usage
-        _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
+        switch(y) {
+          case JVM_ATYPE_LONG:
+            _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
+            y = JVM_STACK_ISLONG;
+            break;
+          case JVM_ATYPE_INT:
+            _jobject->fields = (uint64*)malloc(sizeof(uint32) * argcnt);
+            y = JVM_STACK_ISINT;
+            break;
+          case JVM_ATYPE_CHAR:
+            _jobject->fields = (uint64*)malloc(sizeof(uint8) * argcnt);
+            y = JVM_STACK_ISCHAR;
+            break;
+          case JVM_ATYPE_BYTE:
+            _jobject->fields = (uint64*)malloc(sizeof(uint8) * argcnt);
+            y = JVM_STACK_ISBYTE;
+            break;
+          case JVM_ATYPE_FLOAT:
+            _jobject->fields = (uint64*)malloc(sizeof(uint32) * argcnt);
+            y = JVM_STACK_ISFLOAT;
+            break;
+          case JVM_ATYPE_DOUBLE:
+            _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
+            y = JVM_STACK_ISDOUBLE;
+            break;
+          case JVM_ATYPE_BOOL:
+            _jobject->fields = (uint64*)malloc(sizeof(uint8) * argcnt);
+            y = JVM_STACK_ISBOOL;
+            break;
+          case JVM_ATYPE_SHORT:
+            _jobject->fields = (uint64*)malloc(sizeof(uint16) * argcnt);
+            y = JVM_STACK_ISSHORT;
+            break;
+        }
         _jobject->class = (JVMClass*)(uintptr)argcnt;
-        jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        jvm_StackPush(&stack, (uint64)_jobject, y | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
         debugf("just created array\n");
         jvm_DebugStack(&stack);
         x += 2;

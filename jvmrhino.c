@@ -452,17 +452,17 @@ int main(int argc, char *argv[])
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
 
-  buf = jvm_ReadWholeFile("./java/lang/String.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-
   buf = jvm_ReadWholeFile("./java/lang/Exception.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
-  
+
   buf = jvm_ReadWholeFile("Peach.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
+  
+  buf = jvm_ReadWholeFile("Grape.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
@@ -489,6 +489,6 @@ int main(int argc, char *argv[])
     debugf("error occured in execution somewhere code:%i\n", result);
     return -1;
   }
-  debugf("done! result.data:%lu result.flags:%u\n", jvm_result.data, jvm_result.flags);
+  debugf("done! result.data:%li result.flags:%u\n", jvm_result.data, jvm_result.flags);
   return 1;
 }
