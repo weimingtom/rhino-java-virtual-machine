@@ -23,9 +23,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   int32                         _error;
   JVMLocal                      result;
   JVMLocal                      result2;
-  int32                         y, w, z;
+  int32                         y, w, z, g;
   int32                         eresult;
   JVMClass                      *_jclass;
+  JVMObject                     *__jobject;
   JVMObject                     *_jobject;
   JVMMethod                     *_method;
   JVMConstPoolMethodRef         *b;
@@ -118,6 +119,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ldc_w:
       /// ldc2_w:
       */
+
+      /// aconst_null: push null reference onto stack
+      case 0x01:
+        jvm_StackPush(&stack, 0, JVM_STACK_ISNULL);
+        x += 1;
+        break;
       /// checkcast
       case 0xc0:
         y = code[x+1] << 8 | code[x+2];
@@ -290,8 +297,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x2f:
       /// saload: load short from array
       case 0x35:
-      /// aaload: load ref from arry
-      case 0x32:
       /// baload: load byte/boolean from arraylength
       case 0x33:
         /// index
@@ -344,10 +349,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           case 0x35:
             jvm_StackPush(&stack, ((int16*)_jobject->fields)[w], JVM_STACK_ISSHORT);
             break;
-          /// aaload: load ref from arry
-          case 0x32:
-            jvm_StackPush(&stack, ((uint64*)_jobject->fields)[w], JVM_STACK_ISOBJECTREF);
-            break;
           /// baload: load byte/boolean from arraylength
           case 0x33:
             jvm_StackPush(&stack, ((uint8*)_jobject->fields)[w], JVM_STACK_ISOBJECTREF);
@@ -360,8 +361,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ----------------------------------------------
       /// bastore: store byte/boolean in array
       case 0x54:
-      /// aastore: store ref in array
-      case 0x53:
       /// sastore: store short into array
       case 0x56:
       /// lastore: store long into an array
@@ -394,7 +393,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           error = JVM_ERROR_NOTOBJORARRAY;
           break;
         }
-        
         if (w >= (uint64)_jobject->class) {
           /// error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
@@ -404,10 +402,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           /// bastore: store byte/boolean in array
           case 0x54:
             ((uint8*)_jobject->fields)[w] = y;
-            break;
-          /// aastore: store ref in array
-          case 0x53:
-            ((uint64*)_jobject->fields)[w] = y;
             break;
           /// sastore: store short into array
           case 0x56:
@@ -449,6 +443,73 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
         jvm_StackPush(&stack, (uint64)_jobject->class, JVM_STACK_ISINT);
         x += 1;
+        break;
+      /// aastore: store ref into ref array
+      case 0x53:
+        debugf("OK\n");
+        jvm_StackPop(&stack, &result);
+        __jobject = (JVMObject*)result.data;
+        // we do not want anything but an object reference
+        if (!(result.flags & JVM_STACK_ISOBJECTREF) && !(result.flags & JVM_STACK_ISNULL)) {
+          error = JVM_ERROR_NOTOBJORARRAY;
+          break;
+        }
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPop(&stack, &result);
+        debugf("kkkk\n");
+        _jobject = (JVMObject*)result.data;
+        // make sure the array is an actual arrayref
+        // primitive arrays are the same but with an
+        // extra type flag
+        g = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
+        if (result.flags != g) {
+          error = JVM_ERROR_NOTOBJORARRAY;
+          break;
+        }
+
+        if (__jobject != 0) {
+          // check that the type we are trying to store
+          // is the same or derived from
+          if (!jvm_IsInstanceOf(bundle, __jobject, jvm_GetClassNameFromClass(_jobject->class))) {
+            error = JVM_ERROR_WASNOTINSTANCEOF;
+            break;
+          }
+        }
+        
+        if (w >= (((uint64*)_jobject->fields)[0])) {
+          /// error, past end of array..
+          error = JVM_ERROR_ARRAYOUTOFBOUNDS;
+          break;
+        }
+
+        ((JVMObject**)_jobject->fields)[w + 1] = __jobject;
+        x += 1;
+        break;
+      /// aaload: load onto stack from ref array
+      case 0x32:
+        debugf("0x32 aaload not implemented\n");
+        exit(-4);
+      /// anewarray: create array of references by type specified
+      case 0xbd:
+        y = code[x+1] << 8 | code[x+2];
+        _jobject = (JVMObject*)malloc(sizeof(JVMObject));
+        _jobject->next = jvm->objects;
+        jvm->objects = _jobject;
+        /// allows us to know if this is a ref array for a type
+        /// or if it is a primitive array=0 while obj array!=0
+        c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
+        a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
+        debugf("setting objref array type to %s\n", a->string);
+        _jobject->class = jvm_FindClassInBundle(bundle, a->string);
+        _jobject->refs = 0;
+        _jobject->stackCnt = 1;
+        jvm_StackPop(&stack, &result);
+        argcnt = result.data;
+        _jobject->fields = (uint64*)malloc(sizeof(JVMObject*) * (argcnt + 1));
+        ((uintptr*)_jobject->fields)[0] = argcnt;
+        jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        x += 3;
         break;
       /// newarray
       case 0xbc:
@@ -709,6 +770,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         exit(-3);
         return JVM_ERROR_UNKNOWNOPCODE;
     }
+    /// ---------------------------------
+    /// END OF SWITCH STATEMENT
+    /// ---------------------------------
     jvm_DebugStack(&stack);
     debugf("error:%i\n", error);
     /// we encountered an error condition which could be
@@ -759,7 +823,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         return error;
       }
     }
+    /// END OF ERROR MANAGEMENT
   }
+  /// END OF LOOP
 
   return JVM_SUCCESS;
 }
