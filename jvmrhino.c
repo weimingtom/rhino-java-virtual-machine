@@ -614,6 +614,38 @@ void jvm_ScrubStack(JVMStack *stack) {
   }
 }
 
+int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
+  /// jvm_FindClassInBundle
+  JVMClass                      *c;
+  JVMConstPoolClassInfo         *ci;
+  JVMConstPoolUtf8              *u8;
+  
+  c = jobject->class;
+  
+  while (1) {
+    /// check c's class name with class name
+    ci = (JVMConstPoolClassInfo*)c->pool[c->thisClass - 1];
+    u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
+
+    if (strcmp((const char*)u8->string, className) == 0)
+      return 1;
+      /// if equals exit with true
+
+    /// no super class exit with false
+    if (strcmp(u8->string, "java/lang/Object") == 0)
+      break;
+    /// load class for specified super class
+    ci = (JVMConstPoolClassInfo*)c->pool[c->superClass - 1];
+    u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
+    /// we got an error just not sure best way to handle it
+    c = jvm_FindClassInBundle(bundle, u8->string);
+    if (!c)
+      break;
+  }
+
+  return 0;
+}
+
 int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                          const char *methodName, const char *methodType,
                          JVMLocal *_locals, uint8 localCnt, JVMLocal *_result) {
@@ -729,7 +761,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// athrow
       case 0xbf:
         error = JVM_ERROR_EXCEPTION;
-        x += 1;
         break;
       /// dup: duplicate item on top of stack
       case 0x59:
@@ -751,6 +782,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         /// jump out and create exception if we can..
         if (error < 0)
           break;
+        _jobject->stackCnt = 1;
         jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
         x += 3;
         break;
@@ -1003,11 +1035,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          mclass = a->string;
 
          /// if java/lang/Object just pretend we did
-         if (strcmp(mclass, "java/lang/Object") == 0) {
-          debugf("caught java/lang/Object call and skipped it\n");
-          x +=3 ;
-          break;
-         }
+         //if (strcmp(mclass, "java/lang/Object") == 0) {
+         // debugf("caught java/lang/Object call and skipped it\n");
+         // x +=3 ;
+         // break;
+         //}
          
          d = (JVMConstPoolNameAndType*)jclass->pool[b->descIndex - 1];
          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
@@ -1099,21 +1131,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       debugf("return int from method\n");
       /// return: void from method
       case 0xb1:
-        if (opcode == 0xac)
-        {
+         if (opcode == 0xac)
+         {
           /// no check if objref and decrement refcnt because it
           /// is going right back on the stack we were called from
           jvm_DebugStack(&stack);
           jvm_StackPop(&stack, _result);
-        }
-        
+         }
          ///
          debugf("scrubing stack and locals..\n");
          jvm_ScrubStack(&stack);
          debugf("here\n");
          jvm_ScrubLocals(locals);
          debugf("actually returning from method..\n");
-         
          return JVM_SUCCESS;
       default:
         debugf("unknown opcode %x\n", opcode);
@@ -1125,8 +1155,21 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     /// we encountered an error condition which could be
     /// handled by an exception so we setup for it here
     if (error < 0) {
-      /// cleanup locals and stack
-      debugf("got runtime error -- scrubing locals and stack\n");
+      debugf("got exception -- scrubing locals and stack\n");
+      /// these are run-time exceptions
+      if (error != JVM_ERROR_EXCEPTION) {
+        error = jvm_CreateObject(jvm, bundle, "Exception", &_jobject);
+        _jobject->stackCnt = 0;
+        if (error) {
+          debugf("could not create object type %s!\n");
+          exit(error);
+        }
+      } else {
+        jvm_StackPop(&stack, &result);
+        _jobject = (JVMObject*)result.data;
+        _jobject->stackCnt--;
+      }
+
       jvm_ScrubStack(&stack);
       jvm_ScrubLocals(locals);
       /// are we between an exception handler?
@@ -1135,19 +1178,28 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         debugf("  check x:%i pcStart:%i pcEnd:%i\n", x, method->code->eTable[y].pcStart, method->code->eTable[y].pcEnd);
         if (x >= method->code->eTable[y].pcStart)
           if (x < method->code->eTable[y].pcEnd) {
-            debugf("catchType:%i\n", jclass->pool[method->code->eTable[y].catchType - 1]->type);
-            exit(-9);
+            c = (JVMConstPoolClassInfo*)jclass->pool[method->code->eTable[y].catchType - 1];
+            a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
+            debugf("catchType:%s\n", a->string);
+            /// is _jobject an instance of exception handler class a->string?
+            if (jvm_IsInstanceOf(bundle, _jobject, a->string)) {
+              /// yes, then jump to exception handler
+              jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
+              _jobject->stackCnt++;
+              x = method->code->eTable[y].pcHandler;
+              debugf("jumping to pcHandler:%i\n", x);
+              error = 0;
+              break;
+            }
           }
       }
-      /// if so does it handle this exception?
-      /// --- if we are not or it does not then we must exit out
-      /// --- into the calling function so it can perform these
-      /// --- steps and see if it can handle the exception, until
-      /// --- either it gets caught or the program throws one
-      /// --- final exception out the initial executing method
-      debugf("A run-time exception occured as type %i\n", error);
-      exit(-3);
-      return error;
+      /// if we jumped to an exception handler then we
+      /// need to try to continue
+      if (error < 0) {
+        debugf("A run-time exception occured as type %i\n", error);
+        exit(-3);
+        return error;
+      }
     }
   }
   
@@ -1225,6 +1277,11 @@ int main(int argc, char *argv[])
   uint32                size;
   int                   result;
   JVMLocal              jvm_result;
+
+  buf = jvm_ReadWholeFile("./java/lang/Toodle.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
   
   buf = jvm_ReadWholeFile("./java/lang/Object.class", &size);
   msWrap(&m, buf, size);
