@@ -447,17 +447,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// aastore: store ref into ref array
       case 0x53:
         debugf("OK\n");
+        jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
+        
         __jobject = (JVMObject*)result.data;
         // we do not want anything but an object reference
         if (!(result.flags & JVM_STACK_ISOBJECTREF) && !(result.flags & JVM_STACK_ISNULL)) {
           error = JVM_ERROR_NOTOBJORARRAY;
           break;
         }
+
         jvm_StackPop(&stack, &result);
         w = result.data;
         jvm_StackPop(&stack, &result);
-        debugf("kkkk\n");
         _jobject = (JVMObject*)result.data;
         // make sure the array is an actual arrayref
         // primitive arrays are the same but with an
@@ -476,20 +478,53 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             break;
           }
         }
-        
+       
+        if (w >= (((uint64*)_jobject->fields)[0])) {
+          // error, past end of array..
+          error = JVM_ERROR_ARRAYOUTOFBOUNDS;
+          break;
+        }
+        // if we are overwritting something and it is going
+        // to be null or an object so decrement its refcnt
+        if (__jobject)
+          __jobject->stackCnt++;
+        if (((JVMObject**)_jobject->fields)[w + 1] != 0)
+          ((JVMObject**)_jobject->fields)[w + 1]->stackCnt--;
+
+        ((JVMObject**)_jobject->fields)[w + 1] = __jobject;
+        x += 1;
+        jvm_DebugStack(&stack);
+        break;
+      /// aaload: load onto stack from ref array
+      case 0x32:
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPop(&stack, &result);
+        _jobject = (JVMObject*)result.data;
+        // make sure the array is an actual arrayref
+        // primitive arrays are the same but with an
+        // extra type flag
+        g = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
+        if (result.flags != g) {
+          error = JVM_ERROR_NOTOBJORARRAY;
+          break;
+        }
+        // we are inside the bounds
         if (w >= (((uint64*)_jobject->fields)[0])) {
           /// error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
         }
 
-        ((JVMObject**)_jobject->fields)[w + 1] = __jobject;
+        __jobject = ((JVMObject**)_jobject->fields)[w + 1];
+        if (__jobject == 0) {
+          jvm_StackPush(&stack, 0, JVM_STACK_ISNULL);
+        } else {
+          jvm_StackPush(&stack, (uint64)__jobject, JVM_STACK_ISOBJECTREF);
+          __jobject->stackCnt++;
+        }
         x += 1;
         break;
-      /// aaload: load onto stack from ref array
-      case 0x32:
-        debugf("0x32 aaload not implemented\n");
-        exit(-4);
       /// anewarray: create array of references by type specified
       case 0xbd:
         y = code[x+1] << 8 | code[x+2];
@@ -824,8 +859,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       }
     }
     /// END OF ERROR MANAGEMENT
-  }
+   }
   /// END OF LOOP
-
   return JVM_SUCCESS;
 }
