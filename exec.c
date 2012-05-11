@@ -119,7 +119,16 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ldc_w:
       /// ldc2_w:
       */
-
+      /// ifnonnull: if value is not null branch at instruction
+      case 0xc7:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result);
+        if (result.flags != JVM_STACK_ISNULL) {
+          x += y;
+        } else {
+          x += 3;
+        }
+        break;
       /// aconst_null: push null reference onto stack
       case 0x01:
         jvm_StackPush(&stack, 0, JVM_STACK_ISNULL);
