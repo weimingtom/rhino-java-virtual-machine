@@ -199,10 +199,27 @@ typedef struct _JVMBundle {
   JVMBundleClass                *first;
 } JVMBundle;
 
+typedef struct _JVMObjectField {
+    uint8                       *name;
+    JVMClass                    *jclass;
+    uint64                      value;
+    uint32                      flags;
+} JVMObjectField;
+
 typedef struct _JVMObject {
   struct _JVMObject             *next;
+  // used as max count by primitive
+  // arrays, but is the type for obj
+  // reference arrays
   JVMClass                      *class;
+  union {
+  // used by arrays
   uint64                        *fields;
+  // used by non-array objects
+  JVMObjectField                *_fields;
+  };
+  uint16                        fieldCnt;
+  // never multi-purpose, needed
   struct _JVMObject             *refs;
   int32                         stackCnt;
 } JVMObject;

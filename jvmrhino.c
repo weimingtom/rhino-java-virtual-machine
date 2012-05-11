@@ -379,11 +379,145 @@ int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
   return 0;
 }
 
+int jvm_CountObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
+  JVMClass                      *c;
+  JVMConstPoolClassInfo         *ci;
+  JVMConstPoolUtf8              *u8;
+  int                           x;
+  
+  c = jobject->class;
+  x = 0;
+  while (1) {
+    /// create fields
+    x += c->fieldCnt;
+
+    /// load class for specified super class
+    if (!c->superClass) {
+      break;
+    }
+    ci = (JVMConstPoolClassInfo*)c->pool[c->superClass - 1];
+    u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
+    /// we got an error just not sure best way to handle it
+    c = jvm_FindClassInBundle(bundle, u8->string);
+    if (!c) {
+      debugf("missing super class! [%s]\n", u8->string);
+      break;
+    }
+  }
+
+  return x;
+}
+
+int jvm_FieldTypeStringToFlags(JVMBundle *bundle, uint8 *typestr, JVMClass **class, uint32 *flags) {
+  int                   x, y;
+  uint8                 buf[128];
+  
+  *flags = 0;
+  for (x = 0; typestr[x] != 0; ++x) {
+    switch(typestr[x]) {
+      case '[':
+        *flags |= JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF;
+        break;
+      case 'B':
+        *flags |= JVM_STACK_ISBYTE;
+        break;
+      case 'C':
+        *flags |= JVM_STACK_ISCHAR;
+        break;
+      case 'D':
+        *flags |= JVM_STACK_ISDOUBLE;
+        break;
+      case 'F':
+        *flags |= JVM_STACK_ISFLOAT;
+        break;
+      case 'I':
+        *flags |= JVM_STACK_ISINT;
+        break;
+      case 'J':
+        *flags |= JVM_STACK_ISLONG;
+        break;
+      case 'L':
+        for (y = x + 1; typestr[y] != ';'; ++y) {
+          buf[y - x - 1] = typestr[y];
+        }
+        buf[y - x - 1] = 0;
+        *class = jvm_FindClassInBundle(bundle, &buf[0]);
+        if (!*class) {
+          debugf("could not find class in bundle\n");
+          return JVM_ERROR_CLASSNOTFOUND;
+        }
+        break;
+      case 'S':
+        *flags |= JVM_STACK_ISSHORT;
+        break;
+      case 'Z':
+        *flags |= JVM_STACK_ISBOOL;
+        break;
+    }
+  }
+
+  return JVM_SUCCESS;
+}
+
+int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
+  JVMClass                      *c;
+  JVMConstPoolClassInfo         *ci;
+  JVMConstPoolUtf8              *u8;
+  JVMObjectField                *fields;
+  JVMClass                      *jclass;
+  int                           fcnt;
+  int                           x;
+  int                           y;
+  int                           error;
+  
+  fcnt = jvm_CountObjectFields(jvm, bundle, jobject);
+  fields = (JVMObjectField*)malloc(sizeof(JVMObjectField) * fcnt);
+  jobject->fieldCnt = fcnt;
+  jobject->_fields = fields;
+
+  y = 0;
+  c = jobject->class;
+  while (1) {
+    /// create fields
+    for (x = 0; x < c->fieldCnt; ++x) {
+      // get field name
+      u8 = (JVMConstPoolUtf8*)c->pool[c->fields[x].nameIndex - 1];
+      fields[y].name = u8->string;
+      // get field type
+      u8 = (JVMConstPoolUtf8*)c->pool[c->fields[x].descIndex - 1];
+      // convert into flags
+      debugf("made field %s<%s>\n", fields[y].name, u8->string);
+      error = jvm_FieldTypeStringToFlags(bundle, u8->string, &jclass, &fields[y].flags);
+      // for object arrays this is needed (not primitive arrays)
+      fields[y].jclass = jclass;
+      // valid for all types
+      fields[y].value = 0;
+      ++y;
+    } 
+
+    /// load class for specified super class
+    if (!c->superClass) {
+      break;
+    }
+    ci = (JVMConstPoolClassInfo*)c->pool[c->superClass - 1];
+    u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
+    /// we got an error just not sure best way to handle it
+    c = jvm_FindClassInBundle(bundle, u8->string);
+    if (!c) {
+      debugf("missing super class! [%s]\n", u8->string);
+      return -1;
+    }
+  }
+
+  return 1;
+}
+
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out) {
   JVMClass                      *jclass;
   JVMObject                     *jobject;
   JVMLocal                      result;
   JVMLocal                      locals[1];
+  int                           fcnt;
   
   *out = 0;
   /// find class and create instance
@@ -404,6 +538,9 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   /// link us into global object chain
   jobject->next = jvm->objects;
   jvm->objects = jobject;
+  /// go through and create fields
+  //debugf("WWW\n");
+  jvm_MakeObjectFields(jvm, bundle, jobject);
   /// execute init method
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;

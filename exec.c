@@ -119,6 +119,16 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ldc_w:
       /// ldc2_w:
       */
+      /// ifnull: if value is null branch
+      case 0xc6:
+      y = (int16)(code[x+1] << 8 | code[x+2]);
+      jvm_StackPop(&stack, &result);
+      if (result.flags != JVM_STACK_ISNULL) {
+        x += 3;
+      } else {
+        x += y;
+      }
+      break;
       /// ifnonnull: if value is not null branch at instruction
       case 0xc7:
         y = (int16)(code[x+1] << 8 | code[x+2]);
@@ -677,6 +687,33 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         if (locals[3].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[3].data)->stackCnt++;
         x += 1;
+        break;
+      /// putfield
+      case 0xb5:
+        y = code[x+1] << 8 | code[x+2];
+        jvm_StackPop(&stack, &result);
+        jvm_StackPop(&stack, &result2);
+        _jclass = ((JVMObject*)result2.data)->class;
+
+        a = (JVMConstPoolUtf8*)_jclass->pool[y - 1];
+        tmp = a->string;
+        
+        
+        // look through obj's fields until we find
+        // a matching entry then check the types
+        for (w = 0; w < _jclass->fieldCnt; ++w) {
+              // now check type information to confirm
+              // it can be stored in this field
+              
+              // also we need to reference each objects together
+              // and we need to check if we are overwriting an
+              // object ref and unreference them from each other
+            
+        }
+        
+        debugf("type:%s\n", a->string);
+        exit(-1);
+        x += 3;
         break;
       /// invokevirtual
       case 0xb6:
