@@ -43,6 +43,7 @@ typedef uint64                  uintptr;
 #define JVM_ERROR_NOTOBJORARRAY         -12
 #define JVM_ERROR_WASNOTINSTANCEOF      -13
 #define JVM_ERROR_WASPRIMITIVEARRAY     -14
+#define JVM_ERROR_FIELDTYPEDIFFERS      -15
 
 /*
   I have yet to use the other flags. Currently,
@@ -202,7 +203,7 @@ typedef struct _JVMBundle {
 typedef struct _JVMObjectField {
     uint8                       *name;
     JVMClass                    *jclass;
-    uint64                      value;
+    uintptr                     value;
     uint32                      flags;
 } JVMObjectField;
 

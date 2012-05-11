@@ -32,6 +32,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   JVMConstPoolMethodRef         *b;
   JVMConstPoolClassInfo         *c;
   JVMConstPoolNameAndType       *d;
+  JVMConstPoolFieldRef          *f;
   int                           argcnt;
   uint8                         *mclass;
   uint8                         *mmethod;
@@ -690,29 +691,49 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// putfield
       case 0xb5:
+        // name
         y = code[x+1] << 8 | code[x+2];
+        // value
         jvm_StackPop(&stack, &result);
+        // object
         jvm_StackPop(&stack, &result2);
-        _jclass = ((JVMObject*)result2.data)->class;
 
-        a = (JVMConstPoolUtf8*)_jclass->pool[y - 1];
-        tmp = a->string;
+        _jobject = (JVMObject*)result2.data;
+        _jclass = _jobject->class;
+        f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
+        d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
+        a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
         
+        //tmp = a->string;
+        debugf("here %s\n", a->string);
         
         // look through obj's fields until we find
         // a matching entry then check the types
-        for (w = 0; w < _jclass->fieldCnt; ++w) {
-              // now check type information to confirm
-              // it can be stored in this field
-              
-              // also we need to reference each objects together
-              // and we need to check if we are overwriting an
-              // object ref and unreference them from each other
-            
+        for (w = 0; w < _jobject->fieldCnt; ++w) {
+          if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
+            // matched name now check type
+            if (_jobject->_fields[w].flags != result.flags) {
+              error = JVM_ERROR_FIELDTYPEDIFFERS;
+              break;
+            }
+            // type matches
+            // decrement if we are overwriting a previous object
+            if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
+              if (_jobject->_fields[w].value != 0)
+                ((JVMObject*)_jobject->_fields[w].value)->stackCnt--;
+            // increment if we have an object and are overwriting it
+            if (result.flags & JVM_STACK_ISOBJECTREF)
+              ((JVMObject*)result.data)->stackCnt++;
+            // actualy store it now
+            _jobject->_fields[w].value = (uintptr)result.data;
+            break;
+          }
         }
+        // if error go handle it
+        if (error)
+          break;
         
-        debugf("type:%s\n", a->string);
-        exit(-1);
+        debugf("set field\n");
         x += 3;
         break;
       /// invokevirtual
