@@ -689,6 +689,33 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           ((JVMObject*)locals[3].data)->stackCnt++;
         x += 1;
         break;
+      /// getfield
+      case 0xb4:
+        // name index into const pool table
+        y = code[x+1] << 8 | code[x+2];
+        // object
+        jvm_StackPop(&stack, &result);
+        // may add type check here one day
+        _jobject = (JVMObject*)result.data;
+        _jclass = _jobject->class;
+        f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
+        d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
+        a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
+        // 
+        for (w = 0; w < _jobject->fieldCnt; ++w) {
+          if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
+            // if an object type increase stackCnt because now it
+            // will also exist on the stack
+            if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
+              if (_jobject->_fields[w].value != 0)
+                ((JVMObject*)_jobject->_fields[w].value)->stackCnt--;
+            // push onto the stack
+            jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].flags);
+            break;
+          }
+        }
+        x += 3;
+        break;
       /// putfield
       case 0xb5:
         // name
