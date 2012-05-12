@@ -202,7 +202,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         debugf("i am here\n");
         x += 3;
         break;
-      /// if_icmpgt
+      /// if_icmpge
+      case 0xa2:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result2);
+        jvm_StackPop(&stack, &result);
+        debugf("compare %i <= %i\n", result.data, result2.data);
+        if ((int64)result.data >= (int64)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
+        break;
+      /// if_icmple
       case 0xa4:
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
