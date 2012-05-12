@@ -91,6 +91,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// execute code
   for (x = 0; x < codesz;) {
     opcode = code[x];
+    debugf("---dumping objects---\n");
+    for (_jobject = jvm->objects; _jobject != 0; _jobject = _jobject->next) {
+      debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", _jobject, _jobject->stackCnt, jvm_GetClassNameFromClass(_jobject->class));
+    }
     debugf("opcode(%u/%u):%x\n", x, codesz, opcode);
     switch (opcode) {
       /// nop: no operation
@@ -184,7 +188,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
         debugf("good cast to %s\n", mclass);
         debugf("i am here\n");
-        exit(-9);
         x += 3;
         break;
       /// if_icmpgt
@@ -291,8 +294,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x4c:
         jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
-        debugf("locals[1].data:%lx locals[1].flags:%x\n", locals[1].data, locals[1].flags);
-        debugf("##store.data:%lx\n", result.data);
         if (locals[1].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[1].data)->stackCnt--;
         locals[1].data = result.data;
@@ -675,46 +676,37 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x19:
         y = code[x+1];
         if (locals[y].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[y].data)->stackCnt--;
+          ((JVMObject*)locals[y].data)->stackCnt++;
         jvm_StackPush(&stack, locals[y].data, locals[y].flags);
-        if (locals[x].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[0].data)->stackCnt++;
+
         x += 2;
         break;
       /// aload_0: load a reference onto the stack from local variable 0
       case 0x2a:
         if (locals[0].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[0].data)->stackCnt--;
-        jvm_StackPush(&stack, locals[0].data, locals[0].flags);
-        if (locals[0].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[0].data)->stackCnt++;
+        jvm_StackPush(&stack, locals[0].data, locals[0].flags);
         x += 1;
         break;
       /// aload_1
       case 0x2b:
         if (locals[1].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[1].data)->stackCnt--;
-        jvm_StackPush(&stack, locals[1].data, locals[1].flags);
-        if (locals[1].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[1].data)->stackCnt++;
+        jvm_StackPush(&stack, locals[1].data, locals[1].flags);
         x += 1;
         break;
       /// aload_2
       case 0x2c:
         if (locals[2].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[2].data)->stackCnt--;
-        jvm_StackPush(&stack, locals[2].data, locals[2].flags);
-        if (locals[2].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[2].data)->stackCnt++;
+        jvm_StackPush(&stack, locals[2].data, locals[2].flags);
         x += 1;
         break;
       /// aload_3
       case 0x2d:
         if (locals[3].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[3].data)->stackCnt--;
-        jvm_StackPush(&stack, locals[3].data, locals[3].flags);
-        if (locals[3].flags & JVM_STACK_ISOBJECTREF)
           ((JVMObject*)locals[3].data)->stackCnt++;
+        jvm_StackPush(&stack, locals[3].data, locals[3].flags);
         x += 1;
         break;
       /// getfield
@@ -726,6 +718,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // may add type check here one day
         _jobject = (JVMObject*)result.data;
         _jclass = _jobject->class;
+        _jobject->stackCnt--;
+        
         f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
         a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
@@ -736,7 +730,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             // will also exist on the stack
             if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
               if (_jobject->_fields[w].value != 0)
-                ((JVMObject*)_jobject->_fields[w].value)->stackCnt--;
+                ((JVMObject*)_jobject->_fields[w].value)->stackCnt++;
             // push onto the stack
             jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].aflags);
             break;
@@ -754,6 +748,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPop(&stack, &result2);
 
         _jobject = (JVMObject*)result2.data;
+        _jobject->stackCnt--;
         _jclass = _jobject->class;
         f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
@@ -790,9 +785,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
               if (_jobject->_fields[w].value != 0)
                 ((JVMObject*)_jobject->_fields[w].value)->stackCnt--;
-            // increment if we have an object and are overwriting it
-            if (result.flags & JVM_STACK_ISOBJECTREF)
-              ((JVMObject*)result.data)->stackCnt++;
             // actualy store it now
             _jobject->_fields[w].value = (uintptr)result.data;
             _jobject->_fields[w].aflags = result.flags;
@@ -877,11 +869,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          _locals = (JVMLocal*)malloc(sizeof(JVMLocal) * (argcnt + 2));
          for (y = 0; y < argcnt; ++y) {
            jvm_StackPop(&stack, &result);
+           if (result.flags & JVM_STACK_ISOBJECTREF)
+             ((JVMObject*)result.data)->stackCnt--;
            _locals[y + 1].data = result.data;
            _locals[y + 1].flags = result.flags;
          }
          /// pop object reference from stack
          jvm_StackPop(&stack, &result);
+         ((JVMObject*)result.data)->stackCnt--;
          if (!(result.flags & JVM_STACK_ISOBJECTREF)) {
            error = JVM_ERROR_NOTOBJREF;
            debugf("object from stack is not object reference!");
