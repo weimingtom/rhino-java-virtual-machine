@@ -704,8 +704,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // 
         for (w = 0; w < _jobject->fieldCnt; ++w) {
           if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
-            // if an object type increase stackCnt because now it
-            // will also exist on the stack
             // push onto the stack
             jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].aflags);
             break;
@@ -895,17 +893,20 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0xb1:
          if (opcode == 0xac)
          {
-          /// no check if objref and decrement refcnt because it
-          /// is going right back on the stack we were called from
+          // _result is our return value structure
           jvm_DebugStack(&stack);
           jvm_StackPop(&stack, _result);
          }
-         ///
-         debugf("scrubing stack and locals..\n");
+         // we stored the object reference of the class object
+         // for this method in locals[0] which is where then
+         // java compiler expects it to be now we need to scrub
+         // it's fields to sync object stack counts
+         debugf("scrubbing fields, stack, and locals..\n");
+         if (locals[0].flags & JVM_STACK_ISOBJECTREF)
+          jvm_ScrubObjectFields(locals[0].data);
          jvm_ScrubStack(&stack);
-         debugf("here\n");
          jvm_ScrubLocals(locals);
-         debugf("actually returning from method..\n");
+         
          return JVM_SUCCESS;
       default:
         debugf("unknown opcode %x\n", opcode);

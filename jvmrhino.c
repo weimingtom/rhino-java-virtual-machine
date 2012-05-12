@@ -318,6 +318,15 @@ int jvm_GetMethodTypeArgumentCount(const char *typestr) {
 
 static int g_dbg_ec = 0;
 
+void jvm_ScrubObjectFields(JVMObject *jobject) {
+  int   w;
+  for (w = 0; w < jobject->fieldCnt; ++w) {
+    if (jobject->_fields[w].aflags & JVM_STACK_ISOBJECTREF)
+      if (jobject->_fields[w].value)
+        ((JVMObject*)jobject->_fields[w].value)->stackCnt--;
+  }
+}
+
 void jvm_ScrubLocals(JVMLocal *locals) {
   int           y;
   for (y = 0; y < 256; ++y) {
