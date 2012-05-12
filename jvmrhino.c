@@ -643,5 +643,10 @@ int main(int argc, char *argv[])
     return -1;
   }
   debugf("done! result.data:%li result.flags:%u\n", jvm_result.data, jvm_result.flags);
+
+  debugf("---dumping objects---\n");
+  for (jobject = jvm.objects; jobject != 0; jobject = jobject->next) {
+    debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
+  }
   return 1;
 }
