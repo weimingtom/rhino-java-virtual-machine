@@ -32,6 +32,8 @@ class Apple extends Peach {
 }
 
 class Test extends Apple {
+  Object        a;
+
   public Test() {
   }
 
@@ -39,6 +41,12 @@ class Test extends Apple {
     return 11;
   }
   public int main() {
-    return holo();
+    int[]       b;
+    char[]      c;
+    b = new int[25];
+    b[3] = 55;
+    a = (Object)b;
+    b = (int[])a;
+    return b[3];
   }
 }

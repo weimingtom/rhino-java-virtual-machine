@@ -31,6 +31,9 @@ void jvm_StackPush(JVMStack *stack, int64 value, uint32 flags) {
   stack->pos++;
   debugf("stack push pos:%u\n", stack->pos);
   debugf("value:%u flags:%u\n", value, flags);
+  if (flags & JVM_STACK_ISOBJECTREF)
+    if (value != 0)
+      ((JVMObject*)value)->stackCnt++;
   jvm_DebugStack(stack);
 }
 
@@ -38,5 +41,8 @@ void jvm_StackPop(JVMStack *stack, JVMLocal *local) {
   --stack->pos;
   local->flags = stack->flags[stack->pos];
   local->data = stack->data[stack->pos];
+  if (local->flags & JVM_STACK_ISOBJECTREF)
+    if (local->data != 0)
+      ((JVMObject*)local->data)->stackCnt--;
   printf("stack-pop: pos:%u\n", stack->pos);
 }
