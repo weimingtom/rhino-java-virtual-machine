@@ -205,6 +205,7 @@ typedef struct _JVMObjectField {
     JVMClass                    *jclass;
     uintptr                     value;
     uint32                      flags;
+    uint32                      aflags;
 } JVMObjectField;
 
 typedef struct _JVMObject {

@@ -155,15 +155,36 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         /// more like a stack peek..
         jvm_StackPop(&stack, &result);
         jvm_StackPush(&stack, result.data, result.flags);
+
+        /// convert type string into flags
+        if (mclass[0] == '[') {
+          // this is being casted to a primitive array
+          jvm_FieldTypeStringToFlags(bundle, a->string, &_jclass, &w);
+          debugf("w:%x result.flags:%x\n", w, result.flags);
         
+          if (w != result.flags) {
+            debugf("bad primitive array cast\n");
+            error = JVM_ERROR_BADCAST;
+            break;
+          }
+          x += 3;
+          break;
+        }
+        // this is a object cast to another object by classname
+        // so mclass must exist as this class or a super of it
+        _jobject = (JVMObject*)result.data;
         /// is objref the type described by Y (or can be)
         if (!jvm_IsInstanceOf(bundle, _jobject, mclass))
         {
           debugf("bad cast to %s\n", mclass);
+          debugf("i am here\n");
+          exit(-9);
           error = JVM_ERROR_BADCAST;
           break;
         }
         debugf("good cast to %s\n", mclass);
+        debugf("i am here\n");
+        exit(-9);
         x += 3;
         break;
       /// if_icmpgt
@@ -268,9 +289,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// astore_1
       case 0x4c:
+        jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
+        debugf("locals[1].data:%lx locals[1].flags:%x\n", locals[1].data, locals[1].flags);
+        debugf("##store.data:%lx\n", result.data);
         if (locals[1].flags & JVM_STACK_ISOBJECTREF)
-          ((JVMObject*)locals[y].data)->stackCnt--;
+          ((JVMObject*)locals[1].data)->stackCnt--;
         locals[1].data = result.data;
         locals[1].flags = result.flags;
         x += 1;
@@ -714,7 +738,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               if (_jobject->_fields[w].value != 0)
                 ((JVMObject*)_jobject->_fields[w].value)->stackCnt--;
             // push onto the stack
-            jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].flags);
+            jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].aflags);
             break;
           }
         }
@@ -726,7 +750,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1] << 8 | code[x+2];
         // value
         jvm_StackPop(&stack, &result);
-        // object
+        // object (the object whos field we are setting)
         jvm_StackPop(&stack, &result2);
 
         _jobject = (JVMObject*)result2.data;
@@ -734,9 +758,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
         a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
-        
+
         //tmp = a->string;
-        debugf("here %s\n", a->string);
         
         // look through obj's fields until we find
         // a matching entry then check the types
@@ -772,11 +795,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               ((JVMObject*)result.data)->stackCnt++;
             // actualy store it now
             _jobject->_fields[w].value = (uintptr)result.data;
+            _jobject->_fields[w].aflags = result.flags;
             break;
           }
           
         }
-        exit(-1);
+        
         // if error go handle it
         if (error)
           break;
