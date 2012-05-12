@@ -312,6 +312,32 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_LocalPut(locals, 3, result.data, JVM_STACK_ISINT);
         x += 1;
         break;
+      /// iload
+      case 0x15:
+        y = code[x+1];
+        jvm_StackPush(&stack, locals[y].data, locals[y].flags);
+        x += 2;
+        break;
+      /// iload_0
+      case 0x1a:
+        jvm_StackPush(&stack, locals[0].data, locals[0].flags);
+        x += 1;
+        break;
+      /// iload_1
+      case 0x1b:
+        jvm_StackPush(&stack, locals[1].data, locals[1].flags);
+        x += 1;
+        break;
+      /// iload_2
+      case 0x1c:
+        jvm_StackPush(&stack, locals[2].data, locals[2].flags);
+        x += 1;
+        break;
+      /// iload_3
+      case 0x1d:
+        jvm_StackPush(&stack, locals[3].data, locals[3].flags);
+        x += 1;
+        break;
       /// astore
       case 0x3a:
         y = code[x+1];
