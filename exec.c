@@ -338,7 +338,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           break;
         }
         
-        if (w >= (uint64)_jobject->class) {
+        if (w >= _jobject->fieldCnt) {
           /// error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
@@ -413,7 +413,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           error = JVM_ERROR_NOTOBJORARRAY;
           break;
         }
-        if (w >= (uint64)_jobject->class) {
+        if (w >= (uint64)_jobject->fieldCnt) {
           /// error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
@@ -576,7 +576,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         _jobject = (JVMObject*)malloc(sizeof(JVMObject));
         _jobject->next = jvm->objects;
         jvm->objects = _jobject;
-        _jobject->class = 0;
+        _jobject->class = jvm_FindClassInBundle(bundle, "java/lang/Array");
+        if (!_jobject->class) {
+          debugf("whoa.. newarray but java/lang/Array not in bundle!\n");
+          exit(-99);
+        }
         _jobject->fields = 0;
         _jobject->refs = 0;
         _jobject->stackCnt = 1;
@@ -618,7 +622,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             y = JVM_STACK_ISSHORT;
             break;
         }
-        _jobject->class = (JVMClass*)(uintptr)argcnt;
+        _jobject->fieldCnt = (uintptr)argcnt;
         jvm_StackPush(&stack, (uint64)_jobject, y | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
         debugf("just created array\n");
         jvm_DebugStack(&stack);
@@ -739,10 +743,25 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         for (w = 0; w < _jobject->fieldCnt; ++w) {
           if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
             // matched name now check type
-            if (_jobject->_fields[w].flags != result.flags) {
-              error = JVM_ERROR_FIELDTYPEDIFFERS;
-              break;
+            if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
+            {
+              // see if it is instance of class type specified
+              if (!jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(_jobject->_fields[w].jclass))) {
+                  debugf("not instance of..\n");
+                  error = JVM_ERROR_BADCAST;
+                  break;
+              }
+            } else {
+              if (_jobject->_fields[w].flags != result.flags) {
+                debugf("** %u / %u\n", _jobject->_fields[w].flags, result.flags);
+                error = JVM_ERROR_FIELDTYPEDIFFERS;
+                break;
+              }
             }
+
+            if (error)
+              break;
+            
             // type matches
             // decrement if we are overwriting a previous object
             if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
@@ -755,7 +774,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             _jobject->_fields[w].value = (uintptr)result.data;
             break;
           }
+          
         }
+        exit(-1);
         // if error go handle it
         if (error)
           break;

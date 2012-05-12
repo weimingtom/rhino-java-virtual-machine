@@ -347,6 +347,7 @@ uint8* jvm_GetClassNameFromClass(JVMClass *c) {
   return u->string;
 }
 
+/// is jobject an instance of the specified classname
 int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
   /// jvm_FindClassInBundle
   JVMClass                      *c;
@@ -354,16 +355,16 @@ int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
   JVMConstPoolUtf8              *u8;
   
   c = jobject->class;
-  
   while (1) {
     /// check c's class name with class name
+    debugf("ok %x\n", jobject->class);
     ci = (JVMConstPoolClassInfo*)c->pool[c->thisClass - 1];
     u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
 
     if (strcmp((const char*)u8->string, className) == 0)
       return 1;
       /// if equals exit with true
-
+      
     /// no super class exit with false
     if (strcmp(u8->string, "java/lang/Object") == 0)
       break;
@@ -437,6 +438,7 @@ int jvm_FieldTypeStringToFlags(JVMBundle *bundle, uint8 *typestr, JVMClass **cla
         *flags |= JVM_STACK_ISLONG;
         break;
       case 'L':
+        *flags |= JVM_STACK_ISOBJECTREF;
         for (y = x + 1; typestr[y] != ';'; ++y) {
           buf[y - x - 1] = typestr[y];
         }
@@ -486,8 +488,8 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
       // get field type
       u8 = (JVMConstPoolUtf8*)c->pool[c->fields[x].descIndex - 1];
       // convert into flags
-      debugf("made field %s<%s>\n", fields[y].name, u8->string);
       error = jvm_FieldTypeStringToFlags(bundle, u8->string, &jclass, &fields[y].flags);
+      debugf("made field %s<%s> flags:%u\n", fields[y].name, u8->string, fields[y].flags);
       // for object arrays this is needed (not primitive arrays)
       fields[y].jclass = jclass;
       // valid for all types
@@ -588,6 +590,11 @@ int main(int argc, char *argv[])
   int                   result;
   JVMLocal              jvm_result;
 
+  buf = jvm_ReadWholeFile("./java/lang/Array.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
+  
   buf = jvm_ReadWholeFile("./java/lang/Toodle.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
