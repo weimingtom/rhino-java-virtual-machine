@@ -202,6 +202,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         debugf("i am here\n");
         x += 3;
         break;
+      /// iinc: increment local variable #index by signed byte const
+      case 0x84:
+        y = code[x+1];
+        w = (int8)code[x+2];
+        locals[y].data += (int8)w;
+        x += 3;
+        break;
       /// if_icmpge
       case 0xa2:
         y = (int16)(code[x+1] << 8 | code[x+2]);
