@@ -554,7 +554,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         x += 1;
         break;        
       /// ior:
-      case 0x80
+      case 0x80:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y | w, JVM_STACK_ISINT);
+        x += 1;
+        break;      
       /// iushr: logical shift right on int
       case 0x7c:
         jvm_StackPop(&stack, &result);
