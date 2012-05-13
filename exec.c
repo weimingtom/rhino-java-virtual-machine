@@ -205,8 +205,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             //exit(-3);
             break;
           case TAG_INTEGER:
-            //jclass->pool
-            //jvm_StackPush(&stack,
+            jvm_StackPush(&stack, (intptr)((JVMConstPoolInteger*)jclass->pool[y - 1])->value, JVM_STACK_ISINT);
             break;
           case TAG_FLOAT:
             break;
@@ -490,7 +489,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_LocalPut(locals, 3, result.data, JVM_STACK_ISINT);
         x += 1;
         break;
-      /// il
+      /// iload
       case 0x15:
         y = code[x+1];
         jvm_StackPush(&stack, locals[y].data, locals[y].flags);
@@ -547,6 +546,85 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_LocalPut(locals, 3, result.data, result.flags);
         x += 1;
         break;
+      /// iushr: logical shift right on int
+      case 0x7c:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, ~(~0 >> w) | (y >> w), JVM_STACK_ISINT);
+        x += 1;
+        break;        
+      /// irem: logical int remainder
+      case 0x70:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y % w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// ishl
+      case 0x78:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y << w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// ishr
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y >> w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      case 0x7a:
+      /// isub: subtract two ints
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y - w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      case 0x64:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y - w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// iand: bitwise and on two ints
+      case 0x7e:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y & w, JVM_STACK_ISINT);
+        x += 1;
+        break;        
+      /// idiv: divide two ints
+      case 0x6c:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y / w, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// imul: multiply two ints
+      case 0x68:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPush(&stack, y * w, JVM_STACK_ISINT);
+        x += 1;
+        break;        
       /// iadd: add two ints
       case 0x60:
         jvm_StackPop(&stack, &result);
@@ -1108,7 +1186,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // jvm_ScrubObjectFields(locals[0].data);
          jvm_ScrubStack(&stack);
          jvm_ScrubLocals(locals);
-         
+         jvm_StackFree(&stack);
+         free(locals);
          return JVM_SUCCESS;
       default:
         debugf("unknown opcode %x\n", opcode);
@@ -1162,6 +1241,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// if we jumped to an exception handler then we
       /// need to try to continue
       if (error < 0) {
+        jvm_StackFree(&stack);
+        free(locals);
         debugf("A run-time exception occured as type %i\n", error);
         return error;
       }
@@ -1169,5 +1250,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     /// END OF ERROR MANAGEMENT
    }
   /// END OF LOOP
+  // We should technically never make it here. Since
+  // a return opcode should bring us out. So let us
+  // make it an error to arrive here.
+  printf("[error] reached end of loop!?\n");
+  exit(-55);
   return JVM_SUCCESS;
 }
