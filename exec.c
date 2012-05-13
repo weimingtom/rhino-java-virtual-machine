@@ -159,7 +159,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     for (_jobject = jvm->objects; _jobject != 0; _jobject = _jobject->next) {
       debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", _jobject, _jobject->stackCnt, jvm_GetClassNameFromClass(_jobject->class));
     }
-    debugf("opcode(%u/%u):%x\n", x, codesz, opcode);
+    debugf("opcode(%u/%u):%x className:%s methodName:%s\n", x, codesz, opcode, jvm_GetClassNameFromClass(jclass), methodName);
     switch (opcode) {
       /// nop: no operation
       case 0:
@@ -580,9 +580,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           case 0x35:
             jvm_StackPush(&stack, ((int16*)_jobject->fields)[w], JVM_STACK_ISSHORT);
             break;
-          /// baload: load byte/boolean from arraylength
+          /// baload: load byte/boolean from array
           case 0x33:
-            jvm_StackPush(&stack, ((uint8*)_jobject->fields)[w], JVM_STACK_ISOBJECTREF);
+            debugf("arrived!\n");
+            jvm_StackPush(&stack, ((uint8*)_jobject->fields)[w], JVM_STACK_ISBYTE);
+            debugf("arrived!\n");
             break;
         }
         x += 1;
@@ -1059,8 +1061,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // java compiler expects it to be now we need to scrub
          // it's fields to sync object stack counts
          debugf("scrubbing fields, stack, and locals..\n");
-         if (locals[0].flags & JVM_STACK_ISOBJECTREF)
-          jvm_ScrubObjectFields(locals[0].data);
+         /// should i be scrubbing fields??? i dont think so..
+         //if (locals[0].flags & JVM_STACK_ISOBJECTREF)
+         // jvm_ScrubObjectFields(locals[0].data);
          jvm_ScrubStack(&stack);
          jvm_ScrubLocals(locals);
          
