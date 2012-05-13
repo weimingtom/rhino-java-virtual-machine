@@ -382,6 +382,48 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1] << 8 | code[x+2];
         x = x + (int16)y;
         break;
+      // i2b
+      case 0x91:
+        jvm_StackPop(&stack, &result);
+        result.data = (uint8)(int32)result.data;
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
+      // i2c
+      case 0x92:
+        jvm_StackPop(&stack, &result);
+        result.data = (uint8)(int32)result.data;
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
+      // i2d
+      case 0x87:
+        jvm_StackPop(&stack, &result);
+        ((double*)result.data)[0] = (double)(int32)result.data;
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
+      // i2f
+      case 0x86:
+        jvm_StackPop(&stack, &result);
+        ((float*)result.data)[0] = (float)(int32)result.data;
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
+      // i2l
+      case 0x85:
+        jvm_StackPop(&stack, &result);
+        result.data = (int64)(int32)result.data;
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
+      // i2s
+      case 0x93:
+        jvm_StackPop(&stack, &result);
+        result.data = (int16)(int32)result.data;
+        jvm_StackPush(&stack, result.data, result.flags);
+        x += 1;
+        break;
       /// iconst_m1
       case 0x02:
         jvm_StackPush(&stack, -1, JVM_STACK_ISINT);
@@ -789,13 +831,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// sipush: push a short onto the stack
       case 0x11:
         y = (int16)(code[x+1] << 8 | code[x+2]);
-        jvm_StackPush(&stack, y, JVM_STACK_ISSHORT);
+        jvm_StackPush(&stack, (intptr)y, JVM_STACK_ISSHORT);
         x += 3;
         break;
       /// bipush: push a byte onto the stack as an integer
       case 0x10:
         y = (int8)code[x+1];
-        jvm_StackPush(&stack, y, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (intptr)y, JVM_STACK_ISINT);
         x += 2;
         break;
       /// pop: discard top value on stack
