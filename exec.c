@@ -546,6 +546,15 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_LocalPut(locals, 3, result.data, result.flags);
         x += 1;
         break;
+      /// ineg: interger negate
+      case 0x74:
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPush(&stack, ~y, JVM_STACK_ISINT);
+        x += 1;
+        break;        
+      /// ior:
+      case 0x80
       /// iushr: logical shift right on int
       case 0x7c:
         jvm_StackPop(&stack, &result);
@@ -574,6 +583,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         x += 1;
         break;
       /// ishr
+      case 0x7a:
         jvm_StackPop(&stack, &result);
         y = result.data;
         jvm_StackPop(&stack, &result);
@@ -581,15 +591,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPush(&stack, y >> w, JVM_STACK_ISINT);
         x += 1;
         break;
-      case 0x7a:
-      /// isub: subtract two ints
-        jvm_StackPop(&stack, &result);
-        y = result.data;
-        jvm_StackPop(&stack, &result);
-        w = result.data;
-        jvm_StackPush(&stack, y - w, JVM_STACK_ISINT);
-        x += 1;
-        break;
+      /// isub
       case 0x64:
         jvm_StackPop(&stack, &result);
         y = result.data;
