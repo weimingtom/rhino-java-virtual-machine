@@ -599,6 +599,11 @@ int main(int argc, char *argv[])
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
+
+  buf = jvm_ReadWholeFile("./java/lang/String.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jvm_AddClassToBundle(&jbundle, jclass);
   
   buf = jvm_ReadWholeFile("./java/lang/Toodle.class", &size);
   msWrap(&m, buf, size);

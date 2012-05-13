@@ -12,6 +12,57 @@ void jvm_LocalPut(JVMLocal *locals, uint32 ndx, uintptr data, uint32 flags) {
       ((JVMObject*)data)->stackCnt++;
 }
 
+/// create primitive array
+int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVMObject **jobject) {
+  JVMObject             *_jobject;
+
+  // JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF
+  _jobject = (JVMObject*)malloc(sizeof(JVMObject));
+  _jobject->next = jvm->objects;
+  jvm->objects = _jobject;
+  _jobject->class = jvm_FindClassInBundle(bundle, "java/lang/Array");
+  if (!_jobject->class) {
+    debugf("whoa.. newarray but java/lang/Array not in bundle!\n");
+    exit(-99);
+  }
+  _jobject->fields = 0;
+
+  _jobject->stackCnt = 0;
+
+  switch(type) {
+    case JVM_ATYPE_LONG:
+      _jobject->fields = (uint64*)malloc(sizeof(uint64) * cnt);
+      break;
+    case JVM_ATYPE_INT:
+      _jobject->fields = (uint64*)malloc(sizeof(uint32) * cnt);
+      break;
+    case JVM_ATYPE_CHAR:
+      _jobject->fields = (uint64*)malloc(sizeof(uint8) * cnt);
+      break;
+    case JVM_ATYPE_BYTE:
+      _jobject->fields = (uint64*)malloc(sizeof(uint8) * cnt);
+      break;
+    case JVM_ATYPE_FLOAT:
+      _jobject->fields = (uint64*)malloc(sizeof(uint32) * cnt);
+      break;
+    case JVM_ATYPE_DOUBLE:
+      _jobject->fields = (uint64*)malloc(sizeof(uint64) * cnt);
+      break;
+    case JVM_ATYPE_BOOL:
+      _jobject->fields = (uint64*)malloc(sizeof(uint8) * cnt);
+      break;
+    case JVM_ATYPE_SHORT:
+      _jobject->fields = (uint64*)malloc(sizeof(uint16) * cnt);
+      break;
+  }
+  _jobject->fieldCnt = (uintptr)cnt;
+  //jvm_StackPush(&stack, (uint64)_jobject, (y << 4) | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+  debugf("just created array\n");
+  //jvm_DebugStack(&stack);
+  *jobject = _jobject;
+
+}
+
 int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                          const char *methodName, const char *methodType,
                          JVMLocal *_locals, uint8 localCnt, JVMLocal *_result) {
@@ -44,6 +95,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   JVMConstPoolClassInfo         *c;
   JVMConstPoolNameAndType       *d;
   JVMConstPoolFieldRef          *f;
+  JVMConstPoolString            *s;
   int                           argcnt;
   uint8                         *mclass;
   uint8                         *mmethod;
@@ -113,27 +165,54 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0:
         x += 2;
         break;
-      /*
       /// ldc: push a constant #index from a constant pool (string, int, or float) onto the stack
       case 0x12:
+        debugf("LDC\n");
         y = code[x+1];
         /// determine what this index refers too
-        switch (jclass->pool[y]->type) {
+        switch (jclass->pool[y - 1]->type) {
           case TAG_STRING:
-            /// create string object
+            // navigate constant pool
+            a = (JVMConstPoolUtf8*)jclass->pool[((JVMConstPoolString*)jclass->pool[y - 1])->stringIndex - 1];
+            // get string length in 'w'
+            for (w = 0; a->string[w] != 0; ++w);
+            // create java/lang/String
+            debugf("***********************************\n");
             jvm_CreateObject(jvm, bundle, "java/lang/String", &_jobject);
-            /// create byte array
-            _jobject->
-            /// set byte array to String field
-            
+            // create byte array to hold string
+            /// todo: ref our byte[] to String
+            /// todo: also do for putfield and getfield opcodes
+            jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, w, &__jobject);
+            __jobject->stackCnt = 1;
+            debugf("_jobject->_fields:%x\n", _jobject->_fields);
+            for (w = 0; w < _jobject->fieldCnt; ++w) {
+              debugf("%s.%s.%u\n", _jobject->_fields[w].name, "string", w);
+              if (strcmp(_jobject->_fields[w].name, "string") == 0) {
+                _jobject->_fields[w].value = __jobject;
+                _jobject->_fields[w].aflags = JVM_STACK_ISARRAYREF |
+                                              JVM_STACK_ISOBJECTREF |
+                                              JVM_STACK_ISBYTE;
+                break;
+              }
+            }
+            // copy string into primitive byte array
+            for (w = 0; a->string[w] != 0; ++w)
+              ((uint8*)__jobject->fields)[w] = a->string[w];
+            // push onto stack the String object
+            jvm_StackPush(&stack, _jobject, JVM_STACK_STRING | JVM_STACK_ISOBJECTREF);
+            jvm_DebugStack(&stack);
+            //debugf("STOP w:%u\n", w);
+            //exit(-3);
+            break;
           case TAG_INTEGER:
-            jclass->pool
-            jvm_StackPush(&stack,
+            //jclass->pool
+            //jvm_StackPush(&stack,
+            break;
           case TAG_FLOAT:
+            break;
         }
         x += 2;
         break;
-      */
       /// ldc_w:
       /// ldc2_w:
       /// ifnull: if value is null branch
@@ -176,7 +255,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         if (mclass[0] == '[') {
           // this is being casted to a primitive array
           jvm_FieldTypeStringToFlags(bundle, a->string, &_jclass, &w);
-          debugf("w:%x result.flags:%x\n", w, result.flags);
         
           if (w != result.flags) {
             debugf("bad primitive array cast\n");
@@ -198,8 +276,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           error = JVM_ERROR_BADCAST;
           break;
         }
-        debugf("good cast to %s\n", mclass);
-        debugf("i am here\n");
         x += 3;
         break;
       /// iinc: increment local variable #index by signed byte const
@@ -209,12 +285,55 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         locals[y].data += (int8)w;
         x += 3;
         break;
+      /// if_icmpgt
+      case 0xa3:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result2);
+        jvm_StackPop(&stack, &result);
+        if ((int64)result.data > (int64)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
+        break;        
+      /// if_icmplt
+      case 0xa1:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result2);
+        jvm_StackPop(&stack, &result);
+        if ((int64)result.data < (int64)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
+        break;
+      /// if_icmpeq
+      case 0x9f:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result2);
+        jvm_StackPop(&stack, &result);
+        if ((int64)result.data == (int64)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
+        break;        
+      /// if_icmpne
+      case 0xa0:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result2);
+        jvm_StackPop(&stack, &result);
+        if ((int64)result.data != (int64)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
+        break;        
       /// if_icmpge
       case 0xa2:
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        debugf("compare %i <= %i\n", result.data, result2.data);
         if ((int64)result.data >= (int64)result2.data) {
           x += y;
           break;
@@ -226,7 +345,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        debugf("compare %i <= %i\n", result.data, result2.data);
         if ((int64)result.data <= (int64)result2.data) {
           x += y;
           break;
@@ -262,8 +380,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// goto
       case 0xa7:
         y = code[x+1] << 8 | code[x+2];
-        debugf("goto:%u\n", y);
-        x = x + y;
+        x = x + (int16)y;
         break;
       /// iconst_m1
       case 0x02:
@@ -331,7 +448,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_LocalPut(locals, 3, result.data, JVM_STACK_ISINT);
         x += 1;
         break;
-      /// iload
+      /// il
       case 0x15:
         y = code[x+1];
         jvm_StackPush(&stack, locals[y].data, locals[y].flags);
@@ -438,7 +555,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
         }
-        debugf("here\n");
         switch(opcode) {
           /// caload: load char from an array
           case 0x34:
@@ -549,19 +665,18 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// arraylength
       case 0xbe:
+        jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
-        debugf("_jobject:%x\n", _jobject);
         if (!_jobject) {
           error = JVM_ERROR_NULLOBJREF;
           break;
         }
-        jvm_StackPush(&stack, (uint64)_jobject->class, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (uint64)_jobject->fieldCnt, JVM_STACK_ISINT);
         x += 1;
         break;
       /// aastore: store ref into ref array
       case 0x53:
-        debugf("OK\n");
         jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
         __jobject = (JVMObject*)result.data;
@@ -648,7 +763,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         /// or if it is a primitive array=0 while obj array!=0
         c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
         a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
-        debugf("setting objref array type to %s\n", a->string);
         _jobject->class = jvm_FindClassInBundle(bundle, a->string);
         _jobject->refs = 0;
         _jobject->stackCnt = 0;
@@ -665,60 +779,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         /// logic can still work, might need some unions
         /// to clean up dirty code below --kmcguire
         y = code[x+1];
-        // JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF
-        _jobject = (JVMObject*)malloc(sizeof(JVMObject));
-        _jobject->next = jvm->objects;
-        jvm->objects = _jobject;
-        _jobject->class = jvm_FindClassInBundle(bundle, "java/lang/Array");
-        if (!_jobject->class) {
-          debugf("whoa.. newarray but java/lang/Array not in bundle!\n");
-          exit(-99);
-        }
-        _jobject->fields = 0;
-        _jobject->refs = 0;
-        _jobject->stackCnt = 0;
-
         jvm_StackPop(&stack, &result);
-        argcnt = result.data;
-
-        switch(y) {
-          case JVM_ATYPE_LONG:
-            _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
-            y = JVM_STACK_ISLONG;
-            break;
-          case JVM_ATYPE_INT:
-            _jobject->fields = (uint64*)malloc(sizeof(uint32) * argcnt);
-            y = JVM_STACK_ISINT;
-            break;
-          case JVM_ATYPE_CHAR:
-            _jobject->fields = (uint64*)malloc(sizeof(uint8) * argcnt);
-            y = JVM_STACK_ISCHAR;
-            break;
-          case JVM_ATYPE_BYTE:
-            _jobject->fields = (uint64*)malloc(sizeof(uint8) * argcnt);
-            y = JVM_STACK_ISBYTE;
-            break;
-          case JVM_ATYPE_FLOAT:
-            _jobject->fields = (uint64*)malloc(sizeof(uint32) * argcnt);
-            y = JVM_STACK_ISFLOAT;
-            break;
-          case JVM_ATYPE_DOUBLE:
-            _jobject->fields = (uint64*)malloc(sizeof(uint64) * argcnt);
-            y = JVM_STACK_ISDOUBLE;
-            break;
-          case JVM_ATYPE_BOOL:
-            _jobject->fields = (uint64*)malloc(sizeof(uint8) * argcnt);
-            y = JVM_STACK_ISBOOL;
-            break;
-          case JVM_ATYPE_SHORT:
-            _jobject->fields = (uint64*)malloc(sizeof(uint16) * argcnt);
-            y = JVM_STACK_ISSHORT;
-            break;
-        }
-        _jobject->fieldCnt = (uintptr)argcnt;
-        jvm_StackPush(&stack, (uint64)_jobject, y | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
-        debugf("just created array\n");
-        jvm_DebugStack(&stack);
+        jvm_CreatePrimArray(jvm, bundle, y, result.data, &_jobject);
+        jvm_StackPush(&stack, (uintptr)_jobject, (y << 4) | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
         x += 2;
         break;
       /// sipush: push a short onto the stack
@@ -773,17 +836,29 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // may add type check here one day
         _jobject = (JVMObject*)result.data;
         _jclass = _jobject->class;
+
+        debugf("_jobject.name:%s\n", jvm_GetClassNameFromClass(_jobject->class));
         
         f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
         a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
-        // 
+
+        //
+        
+        error = 1;
         for (w = 0; w < _jobject->fieldCnt; ++w) {
+          debugf("looking for field %s have %s\n", a->string, _jobject->_fields[w].name);
           if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
             // push onto the stack
             jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].aflags);
+            error = 0;
             break;
           }
+        }
+        if (error > 0) {
+          debugf("field not found\n");
+          exit(-7);
+          break;
         }
         x += 3;
         break;
@@ -836,7 +911,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             if (result.flags & JVM_STACK_ISOBJECTREF)
               if (result.data)
                 ((JVMObject*)result.data)->stackCnt++;
-                
+            // go through and find our link in the objet's ref links
+              // increment refcnt
+            // if no link create one and set refcnt to 1
+
+            // for the previous object we are about to overwrite
+            // we need to do the same except decrement and unlink
+            // if refcnt is 0
+              
             // actualy store it now
             _jobject->_fields[w].value = (uintptr)result.data;
             _jobject->_fields[w].aflags = result.flags;
@@ -849,8 +931,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // if error go handle it
         if (error)
           break;
-        
-        debugf("set field\n");
+
         x += 3;
         break;
       /// invokevirtual
@@ -870,7 +951,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
          // a->string is className of class we are calling method on
          mclass = a->string;
-
          /// if java/lang/Object just pretend we did
          //if (strcmp(mclass, "java/lang/Object") == 0) {
          // debugf("caught java/lang/Object call and skipped it\n");
@@ -881,9 +961,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          d = (JVMConstPoolNameAndType*)jclass->pool[b->descIndex - 1];
          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
          // a->string is the method of the class
-         debugf("looking!!!\n");
          _jclass = jvm_FindClassInBundle(bundle, mclass);
-         debugf("_jclass:%x\n", _jclass);
+         debugf("find class in bundle %s:%s\n", mclass, jvm_GetClassNameFromClass(_jclass));
+         
          if (!_jclass) {
            debugf("for method call can not find class [%s]\n", mclass);
            error = JVM_ERROR_CLASSNOTFOUND;
@@ -909,7 +989,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
              break;
            }
          }
-         debugf("class with implementation is %s\n", a->string);
 
 
          argcnt = jvm_GetMethodTypeArgumentCount(mtype);
@@ -933,6 +1012,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
            break;
          }
 
+         debugf("CLAZZ:%s\n", jvm_GetClassNameFromClass(((JVMObject*)result.data)->class));
+         
          _locals[0].data = result.data;
          _locals[0].flags = result.flags;
 
@@ -940,7 +1021,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          debugf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
 
          debugf("------------------------------------------\n");
-         eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, locals, argcnt + 1, &result);
+         eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
          free(_locals);
 
          if (eresult < 0) {
@@ -948,8 +1029,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
            debugf("propagating error down the stack frames..\n");
            break;
          }
-
-         debugf("@@@@@@@@@@@%s\n", mtype);
 
          /// need to know if it was a void return or other
          if (!jvm_IsMethodReturnTypeVoid(mtype)) {
@@ -962,12 +1041,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
          x += 3;
          break;
+      /// areturn: return reference from a method
+      case 0xb0:
       /// ireturn: return integer from method
       case 0xac:
       debugf("return int from method\n");
       /// return: void from method
       case 0xb1:
-         if (opcode == 0xac)
+         if (opcode != 0xb1)
          {
           // _result is our return value structure
           jvm_DebugStack(&stack);

@@ -57,17 +57,15 @@ typedef uint64                  uintptr;
 */
 #define JVM_STACK_ISOBJECTREF   0x00000001
 #define JVM_STACK_ISARRAYREF    0x00000002
-#define JVM_STACK_ISBYTE        0x00000010
-#define JVM_STACK_ISCHAR        0x00000020
-#define JVM_STACK_ISDOUBLE      0x00000030
-#define JVM_STACK_ISFLOAT       0x00000040
-#define JVM_STACK_ISINT         0x00000050
-#define JVM_STACK_ISLONG        0x00000060
-#define JVM_STACK_ISSHORT       0x00000070
-#define JVM_STACK_ISBOOL        0x00000080
-#define JVM_STACK_ISARRAY       0x00000090
-#define JVM_STACK_ISSTRING      0x000000a0
-#define JVM_STACK_ISNULL        0x000000b0
+#define JVM_STACK_ISBYTE        0x00000080
+#define JVM_STACK_ISCHAR        0x00000050
+#define JVM_STACK_ISDOUBLE      0x00000070
+#define JVM_STACK_ISFLOAT       0x00000060
+#define JVM_STACK_ISINT         0x000000a0
+#define JVM_STACK_ISLONG        0x000000b0
+#define JVM_STACK_ISSHORT       0x00000090
+#define JVM_STACK_ISBOOL        0x00000040
+#define JVM_STACK_ISNULL        0x000000f0
 /// special 
 #define JVM_STACK_STRING        0x00000004
 
@@ -109,16 +107,16 @@ typedef struct _JVMConstPoolClassInfo {
   uint32                nameIndex;
 } JVMConstPoolClassInfo;
 
+typedef struct _JVMConstPoolString {
+  JVMConstPoolItem      hdr;
+  uint16                stringIndex;
+} JVMConstPoolString;
+
 typedef struct _JVMConstPoolUtf8 {
   JVMConstPoolItem      hdr;
   uint16                size;
   uint8                 *string;
 } JVMConstPoolUtf8;
-
-typedef struct _JVMConstPoolString {
-  JVMConstPoolItem      hdr;
-  uint16                stringIndex;
-} JVMConstPoolString;
 
 typedef struct _JVMConstPoolNameAndType {
   JVMConstPoolItem      hdr;
@@ -222,7 +220,11 @@ typedef struct _JVMObject {
   };
   uint16                        fieldCnt;
   // never multi-purpose, needed
-  struct _JVMObject             *refs;
+  struct _JVMObject             *fwdref;
+  struct _JVMObject             *bckref;
+  /// need to be removed.. asap
+  void                          *refs;
+  //
   int32                         stackCnt;
 } JVMObject;
 

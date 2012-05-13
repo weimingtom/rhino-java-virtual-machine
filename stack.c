@@ -14,10 +14,10 @@ int jvm_StackMore(JVMStack *stack) {
 void jvm_DebugStack(JVMStack *stack) {
   int           x;
 
-  printf("DBGSTACK stack->pos:%u\n", stack->pos);
+  debugf("DBGSTACK stack->pos:%u\n", stack->pos);
   for (x = stack->pos - 1; x > -1; --x)
   {
-    printf("STACK[%u]: %u:%u\n", x, stack->data[x], stack->flags[x]);
+    debugf("STACK[%u]: %u:%u\n", x, stack->data[x], stack->flags[x]);
   }
 }
 
@@ -44,5 +44,5 @@ void jvm_StackPop(JVMStack *stack, JVMLocal *local) {
   if (local->flags & JVM_STACK_ISOBJECTREF)
     if (local->data != 0)
       ((JVMObject*)local->data)->stackCnt--;
-  printf("stack-pop: pos:%u\n", stack->pos);
+  debugf("stack-pop: pos:%u\n", stack->pos);
 }

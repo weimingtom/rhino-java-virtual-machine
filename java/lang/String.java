@@ -1,11 +1,11 @@
 package java.lang;
 
-class String {
+public class String {
+  byte[]        string;
   public String() {
   }
-}
 
-class Object {
-  public Object() {
+  public int tester() {
+    return string.length;
   }
 }
