@@ -7,6 +7,11 @@ void jvm_StackInit(JVMStack *stack, uint32 max) {
   stack->flags = (uint32*)malloc(sizeof(uint32) * max);
 }
 
+void jvm_StackFree(JVMStack *stack) {
+  free(stack->data);
+  free(stack->flags);
+}
+
 int jvm_StackMore(JVMStack *stack) {
   return stack->pos;
 }
@@ -31,6 +36,7 @@ void jvm_StackPush(JVMStack *stack, int64 value, uint32 flags) {
   stack->pos++;
   debugf("stack push pos:%u\n", stack->pos);
   debugf("value:%u flags:%u\n", value, flags);
+  debugf("$$$\n");
   if (flags & JVM_STACK_ISOBJECTREF)
     if (value != 0)
       ((JVMObject*)value)->stackCnt++;
