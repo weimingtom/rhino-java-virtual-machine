@@ -27,6 +27,7 @@ typedef signed int              int32;
 typedef signed short            int16;
 typedef signed char             int8;
 typedef uint64                  uintptr;
+typedef int64                   intptr;
 
 #define JVM_SUCCESS                      1
 #define JVM_ERROR_METHODNOTFOUND        -1
@@ -81,14 +82,14 @@ typedef uint64                  uintptr;
 #define debugf printf("[%s:%u] ", __FUNCTION__, __LINE__); printf
 
 typedef struct _JVMStack {
-  uint64                *data;
+  uintptr               *data;
   uint32                *flags;
   uint32                pos;
   uint32                max;
 } JVMStack;
 
 typedef struct _JVMLocal {
-  int64                 data;
+  uintptr               data;
   uint32                flags;
 } JVMLocal;
 
@@ -111,6 +112,11 @@ typedef struct _JVMConstPoolString {
   JVMConstPoolItem      hdr;
   uint16                stringIndex;
 } JVMConstPoolString;
+
+typedef struct _JVMConstPoolInteger {
+  JVMConstPoolItem      hdr;
+  uint32                value;
+} JVMConstPoolInteger;
 
 typedef struct _JVMConstPoolUtf8 {
   JVMConstPoolItem      hdr;
