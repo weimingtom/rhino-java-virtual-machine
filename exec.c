@@ -159,7 +159,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     for (_jobject = jvm->objects; _jobject != 0; _jobject = _jobject->next) {
       debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", _jobject, _jobject->stackCnt, jvm_GetClassNameFromClass(_jobject->class));
     }
-    debugf("opcode(%u/%u):%x className:%s methodName:%s\n", x, codesz, opcode, jvm_GetClassNameFromClass(jclass), methodName);
+    debugf("\e[7;31mopcode(%u/%u):%x className:%s methodName:%s\e[m\n", x, codesz, opcode, jvm_GetClassNameFromClass(jclass), methodName);
+    jvm_DebugStack(&stack);
+    //fgetc(stdin);
     switch (opcode) {
       /// nop: no operation
       case 0:
@@ -1007,7 +1009,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
         a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
-
         //tmp = a->string;
         
         // look through obj's fields until we find
