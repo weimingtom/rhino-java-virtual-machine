@@ -22,6 +22,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   JVMConstPoolNameAndType	*pint;
   JVMConstPoolFieldRef		*pifr;
   JVMConstPoolString            *pist;
+  JVMConstPoolInteger           *piit;
   JVMClass			*class;
   uint8                         *string;
   
@@ -43,6 +44,12 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   for (x = 0; x < cpoolcnt - 1; ++x) {
     tag = msRead8(m);
     switch (tag) {
+      case TAG_INTEGER:
+        piit = (JVMConstPoolInteger*)malloc(sizeof(JVMConstPoolInteger));
+        pool[x] = (JVMConstPoolInteger*)piit;
+        piit->value = msRead32(m);
+        piit->hdr.type = TAG_INTEGER;
+        break;
       case TAG_STRING:
         pist = (JVMConstPoolString*)malloc(sizeof(JVMConstPoolString));
         pool[x] = (JVMConstPoolItem*)pist;
@@ -302,6 +309,8 @@ int jvm_GetMethodTypeArgumentCount(const char *typestr) {
   /// read each type
   for (x = 0; typestr[x] != ')'; ++x) {
     switch (typestr[x]) {
+      case '[':
+        break;
       case 'L':
         c++;
         /// run until we find semi-colon
@@ -312,7 +321,11 @@ int jvm_GetMethodTypeArgumentCount(const char *typestr) {
         break;
     }
   }
-
+  
+  debugf("ok:%u\n", c);
+  if (c == 2)
+    exit(-4);
+  
   return c;
 }
 
@@ -423,6 +436,7 @@ int jvm_FieldTypeStringToFlags(JVMBundle *bundle, uint8 *typestr, JVMClass **cla
     switch(typestr[x]) {
       case '[':
         *flags |= JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF;
+        *class = jvm_FindClassInBundle(bundle, "java/lang/Array");
         break;
       case 'B':
         *flags |= JVM_STACK_ISBYTE;
@@ -652,11 +666,12 @@ int main(int argc, char *argv[])
     debugf("error occured in execution somewhere code:%i\n", result);
     return -1;
   }
-  debugf("done! result.data:%li result.flags:%u\n", jvm_result.data, jvm_result.flags);
+  
+  printf("done! result.data:%i result.flags:%u\n", jvm_result.data, jvm_result.flags);
 
-  debugf("---dumping objects---\n");
+  printf("---dumping objects---\n");
   for (jobject = jvm.objects; jobject != 0; jobject = jobject->next) {
-    debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
+    printf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
   }
   return 1;
 }
