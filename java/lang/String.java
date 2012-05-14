@@ -13,6 +13,8 @@ public class String {
     return data.length;
   }
 
+  public native int f(int x);
+
   public char charAt(int index) {
     return (char)data[index];
   }

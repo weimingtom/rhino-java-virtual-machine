@@ -67,8 +67,6 @@ typedef int64                   intptr;
 #define JVM_STACK_ISSHORT       0x00000090
 #define JVM_STACK_ISBOOL        0x00000040
 #define JVM_STACK_ISNULL        0x000000f0
-/// special 
-#define JVM_STACK_STRING        0x00000004
 
 #define JVM_ATYPE_BYTE          8
 #define JVM_ATYPE_CHAR          5
@@ -169,6 +167,11 @@ typedef struct _JVMCodeAttribute {
   JVMAttribute          *attrs;
 } JVMCodeAttribute;
 
+/// specifies this function has not java implementation
+/// also the class must have the JVM_CLASS_NATIVE set
+/// and it must be set in our jvm since it is not supported
+/// by the java specification
+#define JVM_ACC_NATIVE          0x00000100
 typedef struct _JVMMethod {
   uint16                accessFlags;
   uint16                nameIndex;
@@ -177,6 +180,16 @@ typedef struct _JVMMethod {
   JVMAttribute          *attrs;
   JVMCodeAttribute      *code;
 } JVMMethod;
+
+/// specifies the class has native methods
+#define JVM_CLASS_NATIVE                1
+
+struct _JVM;
+struct _JVMBundle;
+struct _JVMClass;
+typedef int (*PFNativeHandler)(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMClass *jclass,
+                               uint8 *method8, uint8 *type8, JVMLocal *locals,
+                               int localCnt, JVMLocal *result);
 
 typedef struct _JVMClass {
   uint16                poolCnt;
@@ -192,6 +205,11 @@ typedef struct _JVMClass {
   JVMMethod             *methods;
   uint16                attrCnt;
   JVMAttribute          *attrs;
+  // set to JVM_CLASS_NATIVE then any native method
+  // call will result in a call to the handler
+  uint32                flags;
+  // native handler function pointer
+  PFNativeHandler       nhand;
 } JVMClass;
 
 typedef struct _JVMBundleClass {
@@ -235,6 +253,9 @@ typedef struct _JVMObject {
 } JVMObject;
 
 typedef struct _JVM {
+  // native procedures
+  void                  **nprocs;
+  // all objects instanced on heap
   JVMObject             *objects;
 } JVM;
 

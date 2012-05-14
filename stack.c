@@ -35,7 +35,7 @@ void jvm_StackPush(JVMStack *stack, int64 value, uint32 flags) {
   stack->data[stack->pos] = value;
   stack->pos++;
   debugf("stack push pos:%u\n", stack->pos);
-  debugf("value:%u flags:%u\n", value, flags);
+  debugf("value:%u flags:%x\n", value, flags);
   debugf("$$$\n");
   if (flags & JVM_STACK_ISOBJECTREF)
     if (value != 0)

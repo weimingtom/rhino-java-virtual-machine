@@ -190,7 +190,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             for (w = 0; w < _jobject->fieldCnt; ++w) {
               debugf("%s.%s.%u\n", _jobject->_fields[w].name, "string", w);
               if (strcmp(_jobject->_fields[w].name, "string") == 0) {
-                _jobject->_fields[w].value = __jobject;
+                _jobject->_fields[w].value = (uintptr)__jobject;
                 _jobject->_fields[w].aflags = JVM_STACK_ISARRAYREF |
                                               JVM_STACK_ISOBJECTREF |
                                               JVM_STACK_ISBYTE;
@@ -201,7 +201,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             for (w = 0; a->string[w] != 0; ++w)
               ((uint8*)__jobject->fields)[w] = a->string[w];
             // push onto stack the String object
-            jvm_StackPush(&stack, _jobject, JVM_STACK_STRING | JVM_STACK_ISOBJECTREF);
+            jvm_StackPush(&stack, _jobject, JVM_STACK_ISOBJECTREF);
             jvm_DebugStack(&stack);
             //debugf("STOP w:%u\n", w);
             //exit(-3);
@@ -805,6 +805,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           error = JVM_ERROR_NULLOBJREF;
           break;
         }
+        debugf("before push\n");
         jvm_StackPush(&stack, (uint64)_jobject->fieldCnt, JVM_STACK_ISINT);
         x += 1;
         break;
@@ -1152,8 +1153,18 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          debugf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
          debugf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
 
-         debugf("------------------------------------------\n");
-         eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
+         // check if this is a special native implemented object
+         debugf("accessFlags:%x\n", _method->accessFlags);
+         if ((((JVMObject*)result.data)->class->flags & JVM_CLASS_NATIVE) && (_method->accessFlags & JVM_ACC_NATIVE)) {
+           debugf("-----native-call----\n");
+           // get native implementation procedure index
+           w = result.flags >> 6;
+           eresult = ((JVMObject*)result.data)->class->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
+           //eresult = jvm->nprocs[w](jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result); 
+         } else {
+           debugf("-----java-call----\n");
+           eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
+         }
          free(_locals);
 
          if (eresult < 0) {

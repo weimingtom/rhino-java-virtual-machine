@@ -46,7 +46,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     switch (tag) {
       case TAG_INTEGER:
         piit = (JVMConstPoolInteger*)malloc(sizeof(JVMConstPoolInteger));
-        pool[x] = (JVMConstPoolInteger*)piit;
+        pool[x] = (JVMConstPoolItem*)piit;
         piit->value = msRead32(m);
         piit->hdr.type = TAG_INTEGER;
         break;
@@ -321,11 +321,6 @@ int jvm_GetMethodTypeArgumentCount(const char *typestr) {
         break;
     }
   }
-  
-  debugf("ok:%u\n", c);
-  if (c == 2)
-    exit(-4);
-  
   return c;
 }
 
@@ -595,6 +590,15 @@ void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass) {
   return;
 }
 
+int jvm_system_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMClass *jclass,
+                               uint8 *method8, uint8 *type8, JVMLocal *locals,
+                               int localCnt, JVMLocal *result) {
+  debugf("success\n");
+  result->data = 800;
+  result->flags = JVM_STACK_ISINT;
+  return 1;
+}
+
 int main(int argc, char *argv[])
 {
   uint8			*buf;
@@ -609,6 +613,13 @@ int main(int argc, char *argv[])
   int                   result;
   JVMLocal              jvm_result;
 
+  buf = jvm_ReadWholeFile("./java/lang/System.class", &size);
+  msWrap(&m, buf, size);
+  jclass = jvm_LoadClass(&m);
+  jclass->flags = JVM_CLASS_NATIVE;
+  jclass->nhand = jvm_system_handler;
+  jvm_AddClassToBundle(&jbundle, jclass);
+
   buf = jvm_ReadWholeFile("./java/lang/Array.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
@@ -618,7 +629,7 @@ int main(int argc, char *argv[])
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
-  
+
   buf = jvm_ReadWholeFile("./java/lang/Toodle.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
