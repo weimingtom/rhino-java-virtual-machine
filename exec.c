@@ -1067,6 +1067,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
         x += 3;
         break;
+      /// invokestatic
+      case 0xb8:
       /// invokevirtual
       case 0xb6:
       /// invokespecial
@@ -1126,36 +1128,45 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
          argcnt = jvm_GetMethodTypeArgumentCount(mtype);
 
-         debugf("invokespecial: %s:%s[%u] in %s\n", mmethod, mtype, argcnt, mclass);
+         debugf("invoke: %s:%s[%u] in %s\n", mmethod, mtype, argcnt, mclass);
 
          jvm_DebugStack(&stack);
 
          /// pop locals from stack into local variable array
          _locals = (JVMLocal*)malloc(sizeof(JVMLocal) * (argcnt + 2));
+         w = 1;
+         if (opcode == 0xb8)
+           w = 0;
          for (y = 0; y < argcnt; ++y) {
            jvm_StackPop(&stack, &result);
-           _locals[y + 1].data = result.data;
-           _locals[y + 1].flags = result.flags;
-         }
-         /// pop object reference from stack
-         jvm_StackPop(&stack, &result);
-         if (!(result.flags & JVM_STACK_ISOBJECTREF)) {
-           error = JVM_ERROR_NOTOBJREF;
-           debugf("object from stack is not object reference!");
-           break;
+           _locals[y + w].data = result.data;
+           _locals[y + w].flags = result.flags;
          }
 
-         debugf("CLAZZ:%s\n", jvm_GetClassNameFromClass(((JVMObject*)result.data)->class));
-         
-         _locals[0].data = result.data;
-         _locals[0].flags = result.flags;
+         // if not static invocation then we need the objref
+         if (opcode != 0xb8) {
+          /// pop object reference from stack
+          jvm_StackPop(&stack, &result);
+          if (!(result.flags & JVM_STACK_ISOBJECTREF)) {
+            error = JVM_ERROR_NOTOBJREF;
+            debugf("object from stack is not object reference!");
+            break;
+          }
+          debugf("CLAZZ:%s\n", jvm_GetClassNameFromClass(((JVMObject*)result.data)->class));
+         }
 
-         debugf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
-         debugf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
+         // if not static invocation then we need the objref
+         if (opcode != 0xb8) {
+          _locals[0].data = result.data;
+          _locals[0].flags = result.flags;
 
+          debugf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
+          debugf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
+         }
+         debugf("here\n");
          // check if this is a special native implemented object
          debugf("accessFlags:%x\n", _method->accessFlags);
-         if ((((JVMObject*)result.data)->class->flags & JVM_CLASS_NATIVE) && (_method->accessFlags & JVM_ACC_NATIVE)) {
+         if ((_jclass->flags & JVM_CLASS_NATIVE) && (_method->accessFlags & JVM_ACC_NATIVE)) {
            debugf("-----native-call----\n");
            // get native implementation procedure index
            w = result.flags >> 6;
