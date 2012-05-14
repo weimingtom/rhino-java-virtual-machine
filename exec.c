@@ -210,6 +210,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             jvm_StackPush(&stack, (intptr)((JVMConstPoolInteger*)jclass->pool[y - 1])->value, JVM_STACK_ISINT);
             break;
           case TAG_FLOAT:
+            debugf("TAG_FLOAT not implemented!\n");
+            exit(-9);
             break;
         }
         x += 2;
@@ -1169,8 +1171,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          if ((_jclass->flags & JVM_CLASS_NATIVE) && (_method->accessFlags & JVM_ACC_NATIVE)) {
            debugf("-----native-call----\n");
            // get native implementation procedure index
-           w = result.flags >> 6;
-           eresult = ((JVMObject*)result.data)->class->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
+           eresult = _jclass->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
            //eresult = jvm->nprocs[w](jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result); 
          } else {
            debugf("-----java-call----\n");
