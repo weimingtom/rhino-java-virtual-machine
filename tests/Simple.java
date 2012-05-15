@@ -1,3 +1,4 @@
+// ./java/lang/Object.class ./tests/Simple.class :tests/Simple
 package tests;
 
 class Simple {

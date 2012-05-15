@@ -2,6 +2,7 @@
 import os
 import sys
 import subprocess
+import time
 
 JAVAC = 'javac'
 JAVA = 'java'
@@ -22,6 +23,15 @@ for node in nodes:
   if ext != 'java':
     continue
 
+  fd = open('./tests/%s.java' % base, 'r')
+  line = fd.readline()[2:].strip()
+  fd.close()
+
+  print('-------%s-------' % base)
+
+  deps = line.split(' ')
+  #print('[%s] DEPS:%s' % (base, deps))
+
   # get modified timestamps
   jmt = 0
   cmt = 0
@@ -31,7 +41,7 @@ for node in nodes:
   if os.path.exists('./tests/%s.class' % base):
     stat = os.stat('./tests/%s.class' % base)
     cmt = stat.st_mtime
-  print(jmt, cmt)
+
   # do we need to compile?
   if jmt > cmt:
     print('[%s] compile..' % base, end='')
@@ -39,17 +49,18 @@ for node in nodes:
     d = pd.stderr.read()
     if len(d) > 0:
       print('ERROR')
-      print(bytes.decode(d, 'utf8'))
+      print(d.decode('utf8', 'replace'))
       continue
     print('')
   # run alpha
   print('[%s] alpha..' % base, end = '')
-  args = ['./rhino', './tests/%s.class' % base, 'tests/%s' % base]
+  args = ['./rhino'] + deps + ['./tests/%s.class' % base]
   pd = subprocess.Popen(args, stdout = subprocess.PIPE)
+  pd.wait()
   d = pd.stdout.read()
   p = d.find(b'\ndone! result.data:')
   if p == -1:
-    print(bytes.decode(d, 'utf8'))
+    print(d.decode('utf8', 'replace'))
     print('[FAILED-INCOMPLETE]')
     exit(-1)
   d = d[p:]
@@ -65,6 +76,11 @@ for node in nodes:
   betaResult = int(d)
 
   print('[%s]' % betaResult)
-
+  if alphaResult == betaResult:
+    print('[PASSED]')
+  else:
+    print('[FAILED]')
+    exit(-8)
+  
 
   

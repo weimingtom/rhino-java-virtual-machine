@@ -657,7 +657,9 @@ int main(int argc, char *argv[])
   uint32                size;
   int                   result;
   JVMLocal              jvm_result;
-
+  int                   x;
+  uint8                 *entryClass;
+  
   jvm.objects = 0;
 
   /*
@@ -668,58 +670,25 @@ int main(int argc, char *argv[])
   jclass->nhand = jvm_system_handler;
   jvm_AddClassToBundle(&jbundle, jclass);
   */
-  
-  buf = jvm_ReadWholeFile("./java/lang/Array.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
 
-  buf = jvm_ReadWholeFile("./java/lang/String.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-
-  buf = jvm_ReadWholeFile("./java/lang/Toodle.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-  
-  buf = jvm_ReadWholeFile("./java/lang/Object.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-
-  buf = jvm_ReadWholeFile("./java/lang/Exception.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-
-  buf = jvm_ReadWholeFile("Peach.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-  
-  buf = jvm_ReadWholeFile("Grape.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-  
-  buf = jvm_ReadWholeFile("Apple.class", &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
-  
-  buf = jvm_ReadWholeFile(argv[1], &size);
-  msWrap(&m, buf, size);
-  jclass = jvm_LoadClass(&m);
-  jvm_AddClassToBundle(&jbundle, jclass);
+  for (x = 1; x < argc; ++x) {
+    if (argv[x][0] == ':') {
+      // holds classpath and class name for entry
+      entryClass = &argv[x][1];
+    } else {
+      buf = jvm_ReadWholeFile(argv[x], &size);
+      msWrap(&m, buf, size);
+      jclass = jvm_LoadClass(&m);
+      jvm_AddClassToBundle(&jbundle, jclass);
+    }
+  }  
 
   // make static fields for all classes in bundle,
   // also this calls the special <clinit>:()V method
   jvm_MakeStaticFieldsOnBundle(&jvm, &jbundle);
 
   /// create initial object
-  result = jvm_CreateObject(&jvm, &jbundle, argv[2], &jobject);
+  result = jvm_CreateObject(&jvm, &jbundle, entryClass, &jobject);
 
   if (!jobject) {
     debugf("could not create object?\n");

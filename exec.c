@@ -385,42 +385,62 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1] << 8 | code[x+2];
         x = x + (int16)y;
         break;
-      // i2b
+      /// ifeq
+      case 0x99:
+        y = code[x+1] << 8 | code[x+2];
+        jvm_StackPop(&stack, &result);
+        if (stack.data == 0) {
+          x = x + y;
+          break;
+        }
+        x += 3;
+        break;        
+      /// ifne
+      case 0x9a:
+        y = code[x+1] << 8 | code[x+2];
+        jvm_StackPop(&stack, &result);
+        if (stack.data != 0) {
+          x = x + y;
+          break;
+        }
+        x += 3;
+        break;
+      /// i2b
       case 0x91:
         jvm_StackPop(&stack, &result);
         result.data = (uint8)(int32)result.data;
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
-      // i2c
+      /// i2c
       case 0x92:
         jvm_StackPop(&stack, &result);
         result.data = (uint8)(int32)result.data;
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
-      // i2d
+      /// i2d
       case 0x87:
         jvm_StackPop(&stack, &result);
         ((double*)result.data)[0] = (double)(int32)result.data;
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
-      // i2f
+      /// i2f
       case 0x86:
         jvm_StackPop(&stack, &result);
         ((float*)result.data)[0] = (float)(int32)result.data;
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
-      // i2l
+      /// i2l
       case 0x85:
         jvm_StackPop(&stack, &result);
         result.data = (int64)(int32)result.data;
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
-      // i2s
+      /// i2s
       case 0x93:
         jvm_StackPop(&stack, &result);
         result.data = (int16)(int32)result.data;
@@ -1318,6 +1338,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          jvm_ScrubLocals(locals);
          jvm_StackFree(&stack);
          free(locals);
+         
          return JVM_SUCCESS;
       default:
         debugf("unknown opcode %x\n", opcode);
