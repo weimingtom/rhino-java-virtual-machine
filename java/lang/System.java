@@ -3,8 +3,14 @@ package java.lang;
 // compilation of classes that reference this class. But, it's
 // entire implementation is built-in to the JVM.
 public class System {
-  public System() {}
+  static int            x = -1234;
 
-  public native int Boogey(int x);
-  public native void WriteConsole(String what);
+  public System() {
+  }
+
+  public static int test(int y) {
+    return x + y;
+  }
+
+  public static native void WriteConsole(String what);
 }

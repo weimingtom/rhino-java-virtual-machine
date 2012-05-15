@@ -134,11 +134,11 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->fields[x].nameIndex = msRead16(m);
     class->fields[x].descIndex = msRead16(m);
     class->fields[x].attrCount = msRead16(m);
-    fprintf(stderr, "accessFlags:%u nameIndex:%u descIndex:%u attrCount:%u\n",
-	    class->fields[x].accessFlags,
-	    class->fields[x].nameIndex,
-	    class->fields[x].descIndex,
-	    class->fields[x].attrCount
+    if (class->fields[x].attrCount > 0) {
+        debugf("class field attribute support not implemented!\n");
+        exit(-1);
+    }
+    debugf("accessFlags:%u nameIndex:%u descIndex:%u attrCount:%u\n", class->fields[x].accessFlags, class->fields[x].nameIndex, class->fields[x].descIndex,class->fields[x].attrCount
     );
   }
   /*
@@ -155,6 +155,10 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->methods[x].nameIndex = msRead16(m);
     class->methods[x].descIndex = msRead16(m);
     class->methods[x].attrCount = msRead16(m);
+
+    debugf("--------------->method:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].nameIndex - 1])->string);
+    debugf("--------------->desc:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].descIndex - 1])->string);
+    
     class->methods[x].attrs = (JVMAttribute*)malloc(sizeof(JVMAttribute) * 
       class->methods[x].attrCount);
     for (y = 0; y < class->methods[x].attrCount; ++y) {
@@ -200,15 +204,13 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
           /// read attributes for just this code not method?
           debugf("class->methods[x].code->attrsCount:%u\n", class->methods[x].code->attrsCount);
           for (z = 0; z < class->methods[x].code->attrsCount; ++z) {
-            debugf("yyyy\n");
             class->methods[x].code->attrs[z].nameIndex = msRead16(m);
             class->methods[x].code->attrs[z].length = msRead32(m);
             class->methods[x].code->attrs[z].info = (uint8*)malloc(class->methods[x].code->attrs[z].length);
             msRead(m, class->methods[x].code->attrs[z].length, class->methods[x].code->attrs[z].info);
-            debugf("xxxx\n");
           }
         }
-        debugf("done reading code attribute");
+        debugf("done reading code attribute\n");
       } else {
         /// standard operation for attributes we do not really understand
         class->methods[x].attrs[y].info = (uint8*)malloc(class->methods[x].attrs[y].length);
@@ -229,7 +231,6 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->attrs[x].info = (uint8*)malloc(class->attrs[x].length);
     msRead(m, class->attrs[x].length, class->attrs[x].info);
   }
-  
   return class;
 }
 
@@ -475,6 +476,43 @@ int jvm_FieldTypeStringToFlags(JVMBundle *bundle, uint8 *typestr, JVMClass **cla
   return JVM_SUCCESS;
 }
 
+int jvm_MakeStaticFields(JVM *jvm, JVMBundle *bundle, JVMClass *class) {
+  int                   x;
+  int                   y;
+  uint8                 *s;
+  
+  for (x = 0, y = 0; x < class->fieldCnt; ++x)
+    if (class->fields[x].accessFlags & JVM_ACC_STATIC)
+      y++;
+  class->sfieldCnt = y;
+  class->sfields = (JVMObjectField*)malloc(sizeof(JVMObjectField) * y);
+  for (x = 0, y = 0; x < class->fieldCnt; ++x) {
+    if (class->fields[x].accessFlags & JVM_ACC_STATIC) {
+      class->sfields[y].name = ((JVMConstPoolUtf8*)class->pool[class->fields[x].nameIndex - 1])->string;
+      s = ((JVMConstPoolUtf8*)class->pool[class->fields[x].descIndex - 1])->string;
+      jvm_FieldTypeStringToFlags(bundle, s, &class->sfields[y].jclass, &class->sfields[y].flags);
+      debugf("static field\n");
+      debugf("  desc:%s\n", s);
+      debugf("  name:%s\n", class->sfields[y].name);
+      debugf("  class:%x\n", class->sfields[y].jclass);
+      class->sfields[y].aflags = 0;
+      ++y;
+    }
+  }
+  //
+  if (jvm_FindMethodInClass(class, "<clinit>", "()V")) {
+    debugf("@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+    jvm_ExecuteObjectMethod(jvm, bundle, class, "<clinit>", "()V", 0, 0, 0);
+  }
+  return y;
+}
+
+int jvm_MakeStaticFieldsOnBundle(JVM *jvm, JVMBundle *bundle) {
+  JVMBundleClass        *bc;
+  for (bc = bundle->first; bc != 0; bc = bc->next)
+    jvm_MakeStaticFields(jvm, bundle, bc->jclass);
+}
+
 int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
   JVMClass                      *c;
   JVMConstPoolClassInfo         *ci;
@@ -586,16 +624,18 @@ void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass) {
 
   jbclass->next = jbundle->first;
   jbundle->first = jbclass;
-
   return;
 }
+
+#define JVM_HAND_LMAC(a, b, c, d) ((a) << 24 | (b) << 16 | (c) << 8 | (d))
 
 int jvm_system_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMClass *jclass,
                                uint8 *method8, uint8 *type8, JVMLocal *locals,
                                int localCnt, JVMLocal *result) {
-  debugf("success\n");
-  result->data = 800;
-  result->flags = JVM_STACK_ISINT;
+  
+  debugf("success:%s:%s\n", method8, type8);
+  //result->data = 800;
+  //result->flags = JVM_STACK_ISINT;
   return 1;
 }
 
@@ -612,6 +652,8 @@ int main(int argc, char *argv[])
   uint32                size;
   int                   result;
   JVMLocal              jvm_result;
+
+  jvm.objects = 0;
 
   buf = jvm_ReadWholeFile("./java/lang/System.class", &size);
   msWrap(&m, buf, size);
@@ -665,7 +707,9 @@ int main(int argc, char *argv[])
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
 
-  jvm.objects = 0;
+  // make static fields for all classes in bundle,
+  // also this calls the special <clinit>:()V method
+  jvm_MakeStaticFieldsOnBundle(&jvm, &jbundle);
 
   /// create initial object
   result = jvm_CreateObject(&jvm, &jbundle, "Test", &jobject);

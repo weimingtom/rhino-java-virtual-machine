@@ -172,6 +172,16 @@ typedef struct _JVMCodeAttribute {
 /// and it must be set in our jvm since it is not supported
 /// by the java specification
 #define JVM_ACC_NATIVE          0x00000100
+#define JVM_ACC_PUBLIC          0x00000001
+#define JVM_ACC_PRIVATE         0x00000002
+#define JVM_ACC_PROTECTED       0x00000004
+#define JVM_ACC_STATIC          0x00000008
+#define JVM_ACC_FINAL           0x00000010
+#define JVM_ACC_VOLATILE        0x00000040
+#define JVM_ACC_TRANSIENT       0x00000080
+#define JVM_ACC_SYNTHETIC       0x00001000
+#define JVM_ACC_ENUM            0x00004000
+
 typedef struct _JVMMethod {
   uint16                accessFlags;
   uint16                nameIndex;
@@ -190,26 +200,30 @@ struct _JVMClass;
 typedef int (*PFNativeHandler)(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMClass *jclass,
                                uint8 *method8, uint8 *type8, JVMLocal *locals,
                                int localCnt, JVMLocal *result);
+struct _JVMObjectField;
 
 typedef struct _JVMClass {
-  uint16                poolCnt;
-  JVMConstPoolItem      **pool;
-  uint16                accessFlags;
-  uint16                thisClass;
-  uint16                superClass;
-  uint16                ifaceCnt;
-  uint16                *interfaces;
-  uint16                fieldCnt;
-  JVMClassField         *fields;
-  uint16                methodCnt;
-  JVMMethod             *methods;
-  uint16                attrCnt;
-  JVMAttribute          *attrs;
+  uint16                        poolCnt;
+  JVMConstPoolItem              **pool;
+  uint16                        accessFlags;
+  uint16                        thisClass;
+  uint16                        superClass;
+  uint16                        ifaceCnt;
+  uint16                        *interfaces;
+  uint16                        fieldCnt;
+  JVMClassField                 *fields;
+  uint16                        methodCnt;
+  JVMMethod                     *methods;
+  uint16                        attrCnt;
+  JVMAttribute                  *attrs;
   // set to JVM_CLASS_NATIVE then any native method
   // call will result in a call to the handler
-  uint32                flags;
+  uint32                        flags;
   // native handler function pointer
-  PFNativeHandler       nhand;
+  PFNativeHandler               nhand;
+  // static fields
+  uint16                        sfieldCnt;
+  struct _JVMObjectField        *sfields;
 } JVMClass;
 
 typedef struct _JVMBundleClass {

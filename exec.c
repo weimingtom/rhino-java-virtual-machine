@@ -85,7 +85,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   int32                         _error;
   JVMLocal                      result;
   JVMLocal                      result2;
-  int32                         y, w, z, g;
+  intptr                        y, w, z, g;
   int32                         eresult;
   JVMClass                      *_jclass;
   JVMObject                     *__jobject;
@@ -923,13 +923,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// sipush: push a short onto the stack
       case 0x11:
         y = (int16)(code[x+1] << 8 | code[x+2]);
-        jvm_StackPush(&stack, (intptr)y, JVM_STACK_ISSHORT);
+        jvm_StackPush(&stack, y, JVM_STACK_ISSHORT);
         x += 3;
         break;
       /// bipush: push a byte onto the stack as an integer
       case 0x10:
         y = (int8)code[x+1];
-        jvm_StackPush(&stack, (intptr)y, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, y, JVM_STACK_ISINT);
         x += 2;
         break;
       /// pop: discard top value on stack
@@ -962,6 +962,34 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x2d:
         jvm_StackPush(&stack, locals[3].data, locals[3].flags);
         x += 1;
+        break;
+      /// getstatic
+      case 0xb2:
+        // name index into const pool table
+        y = code[x+1] << 8 | code[x+2];
+
+        f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
+        d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
+        a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
+
+        //
+        error = 1;
+        for (w = 0; w < jclass->sfieldCnt; ++w) {
+          debugf("looking for field %s have %s\n", a->string, jclass->sfields[w].name);
+          if (strcmp(jclass->sfields[w].name, a->string) == 0) {
+            // push onto the stack
+            debugf("jclass->sfields[w].value:%li\n", jclass->sfields[w].value);
+            jvm_StackPush(&stack, jclass->sfields[w].value, jclass->sfields[w].aflags);
+            error = 0;
+            break;
+          }
+        }
+        if (error > 0) {
+          debugf("field not found\n");
+          exit(-7);
+          break;
+        }
+        x += 3;
         break;
       /// getfield
       case 0xb4:
@@ -996,6 +1024,75 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           exit(-7);
           break;
         }
+        x += 3;
+        break;
+      /// putstatic
+      case 0xb3:
+        // name
+        y = code[x+1] << 8 | code[x+2];
+        // value
+        jvm_StackPop(&stack, &result);
+
+        f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
+        d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
+        a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
+        //tmp = a->string;
+
+        // look through obj's fields until we find
+        // a matching entry then check the types
+        for (w = 0; w < jclass->sfieldCnt; ++w) {
+          if (strcmp(jclass->sfields[w].name, a->string) == 0) {
+            // matched name now check type
+            if (jclass->sfields[w].flags & JVM_STACK_ISOBJECTREF)
+            {
+              // see if it is instance of class type specified
+              if (!jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(jclass->sfields[w].jclass))) {
+                  debugf("not instance of..\n");
+                  error = JVM_ERROR_BADCAST;
+                  break;
+              }
+            } else {
+              //if (jclass->sfields[w].flags != result.flags) {
+              //  debugf("** %x / %x\n", jclass->sfields[w].flags, result.flags);
+              //  exit(4);
+              //  error = JVM_ERROR_FIELDTYPEDIFFERS;
+              //  break;
+              // }
+            }
+
+            if (error)
+              break;
+
+            // decrement existing object if there
+            if (jclass->sfields[w].flags & JVM_STACK_ISOBJECTREF)
+              if (jclass->sfields[w].value)
+                ((JVMObject*)jclass->sfields[w].value)->stackCnt--;
+            // increment object we are placing there
+            if (result.flags & JVM_STACK_ISOBJECTREF)
+              if (result.data)
+                ((JVMObject*)result.data)->stackCnt++;
+            // go through and find our link in the objet's ref links
+              // increment refcnt
+            // if no link create one and set refcnt to 1
+
+            // for the previous object we are about to overwrite
+            // we need to do the same except decrement and unlink
+            // if refcnt is 0
+
+            // actualy store it now
+            jclass->sfields[w].value = (intptr)result.data;
+            jclass->sfields[w].aflags = result.flags;
+            debugf("putstatic jclass->sfields[w].value:%li\n", jclass->sfields[w].value);
+
+            break;
+          }
+
+        }
+
+        // if error go handle it
+        if (error)
+          break;
+
         x += 3;
         break;
       /// putfield
@@ -1057,7 +1154,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             // actualy store it now
             _jobject->_fields[w].value = (uintptr)result.data;
             _jobject->_fields[w].aflags = result.flags;
-            
+
             break;
           }
           
