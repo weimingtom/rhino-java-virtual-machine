@@ -608,7 +608,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = result.data;
         jvm_StackPop(&stack, &result);
         w = result.data;
-        jvm_StackPush(&stack, y - w, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)y - (int32)w, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iand: bitwise and on two ints
@@ -626,7 +626,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = result.data;
         jvm_StackPop(&stack, &result);
         w = result.data;
-        jvm_StackPush(&stack, y / w, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)y / (int32)w, JVM_STACK_ISINT);
         x += 1;
         break;
       /// imul: multiply two ints
@@ -635,16 +635,16 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = result.data;
         jvm_StackPop(&stack, &result);
         w = result.data;
-        jvm_StackPush(&stack, y * w, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)y * (int32)w, JVM_STACK_ISINT);
         x += 1;
         break;        
       /// iadd: add two ints
       case 0x60:
         jvm_StackPop(&stack, &result);
         y = result.data;
-        jvm_StackPop(&stack, &result);
-        w = result.data;
-        jvm_StackPush(&stack, y + w, JVM_STACK_ISINT);
+        jvm_StackPop(&stack, &result2);
+        w = result2.data;
+        jvm_StackPush(&stack, (int32)y + (int32)w, JVM_STACK_ISINT);
         x += 1;
         break;
       /// ----------------------------------------------

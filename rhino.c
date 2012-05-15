@@ -40,7 +40,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   pool = (JVMConstPoolItem**)malloc(sizeof(JVMConstPoolItem*) * cpoolcnt);
   class->poolCnt = cpoolcnt;
   class->pool = pool;
-  fprintf(stderr, "cpoolcnt:%u", cpoolcnt);
+  debugf("cpoolcnt:%u", cpoolcnt);
   for (x = 0; x < cpoolcnt - 1; ++x) {
     tag = msRead8(m);
     switch (tag) {
@@ -338,6 +338,7 @@ void jvm_ScrubObjectFields(JVMObject *jobject) {
 
 void jvm_ScrubLocals(JVMLocal *locals) {
   int           y;
+
   for (y = 0; y < 256; ++y) {
     if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
       ((JVMObject*)locals[y].data)->stackCnt--;
@@ -607,6 +608,10 @@ uint8* jvm_ReadWholeFile(const char *path, uint32 *size) {
   FILE          *fp;
   
   fp = fopen(path, "rb");
+  if (!fp) {
+    debugf("error could not open file %s", path);
+    exit(-4);
+  }
   fseek(fp, 0, 2);
   *size = ftell(fp);
   fseek(fp, 0, 0);
@@ -655,13 +660,15 @@ int main(int argc, char *argv[])
 
   jvm.objects = 0;
 
+  /*
   buf = jvm_ReadWholeFile("./java/lang/System.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jclass->flags = JVM_CLASS_NATIVE;
   jclass->nhand = jvm_system_handler;
   jvm_AddClassToBundle(&jbundle, jclass);
-
+  */
+  
   buf = jvm_ReadWholeFile("./java/lang/Array.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
@@ -702,7 +709,7 @@ int main(int argc, char *argv[])
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
   
-  buf = jvm_ReadWholeFile("Test.class", &size);
+  buf = jvm_ReadWholeFile(argv[1], &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jvm_AddClassToBundle(&jbundle, jclass);
@@ -712,7 +719,12 @@ int main(int argc, char *argv[])
   jvm_MakeStaticFieldsOnBundle(&jvm, &jbundle);
 
   /// create initial object
-  result = jvm_CreateObject(&jvm, &jbundle, "Test", &jobject);
+  result = jvm_CreateObject(&jvm, &jbundle, argv[2], &jobject);
+
+  if (!jobject) {
+    debugf("could not create object?\n");
+    exit(-1);
+  }
   
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
