@@ -580,18 +580,18 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// ior:
       case 0x80:
         jvm_StackPop(&stack, &result);
-        y = result.data;
-        jvm_StackPop(&stack, &result);
         w = result.data;
+        jvm_StackPop(&stack, &result);
+        y = result.data;
         jvm_StackPush(&stack, y | w, JVM_STACK_ISINT);
         x += 1;
         break;      
       /// iushr: logical shift right on int
       case 0x7c:
         jvm_StackPop(&stack, &result);
-        y = result.data;
-        jvm_StackPop(&stack, &result);
         w = result.data;
+        jvm_StackPop(&stack, &result);
+        y = result.data;
         jvm_StackPush(&stack, ~(~0 >> w) | (y >> w), JVM_STACK_ISINT);
         x += 1;
         break;        
@@ -601,24 +601,33 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = result.data;
         jvm_StackPop(&stack, &result);
         w = result.data;
-        jvm_StackPush(&stack, y % w, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)w % (int32)y, JVM_STACK_ISINT);
+        x += 1;
+        break;
+      /// xor
+      case 0x82:
+        jvm_StackPop(&stack, &result);
+        w = result.data;
+        jvm_StackPop(&stack, &result);
+        y = result.data;
+        jvm_StackPush(&stack, y ^ w, JVM_STACK_ISINT);
         x += 1;
         break;
       /// ishl
       case 0x78:
         jvm_StackPop(&stack, &result);
-        y = result.data;
-        jvm_StackPop(&stack, &result);
         w = result.data;
+        jvm_StackPop(&stack, &result);
+        y = result.data;
         jvm_StackPush(&stack, y << w, JVM_STACK_ISINT);
         x += 1;
         break;
       /// ishr
       case 0x7a:
         jvm_StackPop(&stack, &result);
-        y = result.data;
-        jvm_StackPop(&stack, &result);
         w = result.data;
+        jvm_StackPop(&stack, &result);
+        y = result.data;
         jvm_StackPush(&stack, y >> w, JVM_STACK_ISINT);
         x += 1;
         break;
@@ -628,7 +637,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = result.data;
         jvm_StackPop(&stack, &result);
         w = result.data;
-        jvm_StackPush(&stack, (int32)y - (int32)w, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)w - (int32)y, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iand: bitwise and on two ints
@@ -646,7 +655,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = result.data;
         jvm_StackPop(&stack, &result);
         w = result.data;
-        jvm_StackPush(&stack, (int32)y / (int32)w, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)w / (int32)y, JVM_STACK_ISINT);
         x += 1;
         break;
       /// imul: multiply two ints
