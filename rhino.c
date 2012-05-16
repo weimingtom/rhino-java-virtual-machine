@@ -676,12 +676,13 @@ int main(int argc, char *argv[])
       // holds classpath and class name for entry
       entryClass = &argv[x][1];
     } else {
+      debugf("loading %s\n", argv[x]);
       buf = jvm_ReadWholeFile(argv[x], &size);
       msWrap(&m, buf, size);
       jclass = jvm_LoadClass(&m);
       jvm_AddClassToBundle(&jbundle, jclass);
     }
-  }  
+  }
 
   // make static fields for all classes in bundle,
   // also this calls the special <clinit>:()V method
@@ -689,7 +690,8 @@ int main(int argc, char *argv[])
 
   /// create initial object
   result = jvm_CreateObject(&jvm, &jbundle, entryClass, &jobject);
-
+  jclass = jvm_FindClassInBundle(&jbundle, entryClass);
+  
   if (!jobject) {
     debugf("could not create object?\n");
     exit(-1);
