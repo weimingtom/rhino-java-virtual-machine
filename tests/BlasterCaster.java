@@ -2,11 +2,19 @@
 package tests;
 
 class BlasterCaster {
+  public BlasterCaster                  aa;
+  public BlasterCaster                  bb;
+
   public int main() {
     short       a;
     short       b;
     short       c;
     int         r;
+
+    aa = new BlasterCaster();
+    bb = new BlasterCaster();
+    aa.aa = bb;
+    bb.aa = aa;
 
     // test for wrap-around and other stuff
     r = 0;
