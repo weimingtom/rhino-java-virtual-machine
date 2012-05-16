@@ -1117,27 +1117,41 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPop(&stack, &result);
         // object (the object whos field we are setting)
         jvm_StackPop(&stack, &result2);
-
         _jobject = (JVMObject*)result2.data;
         _jclass = _jobject->class;
-        f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
-        d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
-        a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
+        debugf("here %u\n", _jclass->pool[y - 1]->type);
+        if (_jclass->pool[y - 1]->type == 1)
+        {
+          debugf("-->%s\n", ((JVMConstPoolUtf8*)_jclass->pool[y - 1])->string);
+          a = (JVMConstPoolUtf8*)_jclass->pool[y - 1];
+        } else {
+          f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
+          debugf("here %u\n", f->nameAndTypeIndex);
+          d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
+          debugf("here\n");
+          a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
+          debugf("##>%s\n", a->string);
+          exit(-4);
+        }
         //tmp = a->string;
         // look through obj's fields until we find
         // a matching entry then check the types
         for (w = 0; w < _jobject->fieldCnt; ++w) {
           if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
-            debugf("eee\n");
             // matched name now check type
             if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
             {
-              // see if it is instance of class type specified
-              if (!jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(_jobject->_fields[w].jclass))) {
-                  debugf("not instance of..\n");
-                  error = JVM_ERROR_BADCAST;
-                  break;
+              debugf("ttt %s\n", jvm_GetClassNameFromClass(_jobject->_fields[w].jclass));
+              // if not null then we have to check type
+              if (result.data) {
+                // see if it is instance of class type specified
+                if (!jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(_jobject->_fields[w].jclass))) {
+                    debugf("not instance of..\n");
+                    error = JVM_ERROR_BADCAST;
+                    break;
+                }
               }
+              debugf("ttt\n");
             } else {
               if (_jobject->_fields[w].flags != result.flags) {
                 debugf("** %u / %u\n", _jobject->_fields[w].flags, result.flags);
