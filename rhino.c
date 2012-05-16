@@ -644,6 +644,103 @@ int jvm_system_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMC
   return 1;
 }
 
+/// garabage collector node structure
+typedef struct _JVMCollect {
+  struct _JVMCollect    *next;
+  JVMObject             *object;        
+} JVMCollect;
+
+int jvm_collect(JVM *jvm) {
+  uint16                cmark;  
+  JVMCollect            *ra, *ca, *_ca;
+  JVMCollect            *rb, *cb;
+  JVMObject             *co;
+  JVMObjectField        *cof;
+  JVMObject             **caf;
+  int                   x;
+
+  ra = 0;
+  rb = 0;
+  
+  cmark = jvm->cmark + 1;
+  // add all objects to ra
+  for (co = jvm->objects; co != 0; co = co->next) {
+    if (co->stackCnt > 0) {
+      ca = (JVMCollect*)malloc(sizeof(JVMCollect));
+      ca->object = co;
+      ca->next = ra;
+      ra = ca;
+      debugf("obj\n");
+    }
+  }
+
+  while (ra != 0) {
+    for (ca = ra; ca != 0; ca = ca->next) {
+      // do not do objects already done
+      if (ca->object->cmark == cmark)
+        continue;
+      // create collects from fields pointing to other objects
+      debugf("pp:%x\n", cof);
+      switch (ca->object->type)
+      {
+        case JVM_OBJTYPE_PARRAY:
+          // stores primitive types
+          break;
+        case JVM_OBJTYPE_OBJECT:
+          cof = ca->object->_fields;
+          for (x = 0; x < ca->object->fieldCnt; ++x) {
+            // add collect to rb
+            debugf("rr x:%u\n", x);
+            // some fields can be primitive
+            if (cof[x].aflags & JVM_STACK_ISOBJECTREF) {
+              if (((JVMObject*)cof[x].value)->cmark == cmark)
+                continue;
+              // it will be marked when reading from ra chain
+              cb = (JVMCollect*)malloc(sizeof(JVMCollect));
+              cb->object = (JVMObject*)cof[x].value;
+              cb->next = rb;
+              rb = cb;
+            }
+            debugf("-rr\n");
+          }
+          break;
+        case JVM_OBJTYPE_OARRAY:
+          caf = (JVMObject**)ca->object->fields;
+          for (x = 0; x < ca->object->fieldCnt; ++x) {
+            if (caf[x]->cmark == cmark)
+              continue;
+            cb = (JVMCollect*)malloc(sizeof(JVMCollect));
+            cb->object = (JVMObject*)caf[x];
+            cb->next = rb;
+            rb = cb;
+          }
+          break;
+      }
+      debugf("here ca:%x\n", ca);
+      // mark this object
+      ca->object->cmark = cmark;
+    }
+    debugf("apple\n");
+    // clear ra and reset it to empty
+    for (ca = ra; ca != 0; ca = _ca) {
+      _ca = ca->next;
+      free(ca);
+    }
+    // switch ra and rb
+    ra = rb;
+    rb = 0;
+  }
+
+  for (co = jvm->objects; co != 0; co = co->next) {
+    if ((co->stackCnt == 0) && (co->cmark != cmark)) {
+      debugf("FREE type:%x obj:%x cmark:%x\n", co->type, co, co->cmark);
+    } else {
+      debugf("KEEP type:%x obj:%x cmark:%x\n", co->type, co, co->cmark);
+    }
+  }
+  return 1;
+}
+
 int main(int argc, char *argv[])
 {
   uint8			*buf;
@@ -661,6 +758,7 @@ int main(int argc, char *argv[])
   uint8                 *entryClass;
   
   jvm.objects = 0;
+  jvm.cmark = 0;
 
   /*
   buf = jvm_ReadWholeFile("./java/lang/System.class", &size);
@@ -711,5 +809,8 @@ int main(int argc, char *argv[])
   for (jobject = jvm.objects; jobject != 0; jobject = jobject->next) {
     printf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
   }
+
+  jvm_collect(&jvm);
+  
   return 1;
 }

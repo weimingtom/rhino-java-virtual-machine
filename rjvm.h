@@ -77,6 +77,13 @@ typedef int64                   intptr;
 #define JVM_ATYPE_BOOL          4
 #define JVM_ATYPE_SHORT         9
 
+// For garbage collection I needed this to easily
+// determine what type of an object I am dealing
+// with.
+#define JVM_OBJTYPE_PARRAY      1
+#define JVM_OBJTYPE_OBJECT      2
+#define JVM_OBJTYPE_OARRAY      3
+
 #define debugf printf("[%s:%u] ", __FUNCTION__, __LINE__); printf
 
 typedef struct _JVMStack {
@@ -257,20 +264,19 @@ typedef struct _JVMObject {
   JVMObjectField                *_fields;
   };
   uint16                        fieldCnt;
-  // never multi-purpose, needed
-  struct _JVMObject             *fwdref;
-  struct _JVMObject             *bckref;
-  /// need to be removed.. asap
-  void                          *refs;
-  //
-  int32                         stackCnt;
+  // how many instances are on stack and locals
+  uint16                        stackCnt;
+  // garbage collector mark
+  uint16                        cmark;
+  // the object absolute type
+  uint8                         type;
 } JVMObject;
 
 typedef struct _JVM {
-  // native procedures
-  void                  **nprocs;
   // all objects instanced on heap
   JVMObject             *objects;
+  // last garbage collector mark
+  uint16                cmark;
 } JVM;
 
 JVMClass* jvm_LoadClass(struct _JVMMemoryStream *m);

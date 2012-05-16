@@ -19,6 +19,7 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   // JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF
   _jobject = (JVMObject*)malloc(sizeof(JVMObject));
   _jobject->next = jvm->objects;
+  _jobject->type = JVM_OBJTYPE_PARRAY;
   jvm->objects = _jobject;
   _jobject->class = jvm_FindClassInBundle(bundle, "java/lang/Array");
   if (!_jobject->class) {
@@ -26,7 +27,6 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
     exit(-99);
   }
   _jobject->fields = 0;
-
   _jobject->stackCnt = 0;
 
   switch(type) {
@@ -374,6 +374,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
         a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
         error = jvm_CreateObject(jvm, bundle, a->string, &_jobject);
+        _jobject->type = JVM_OBJTYPE_OBJECT;
         /// jump out and create exception if we can..
         if (error < 0)
           break;
@@ -874,18 +875,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           }
         }
        
-        if (w >= (((uint64*)_jobject->fields)[0])) {
+        if (w >= _jobject->fieldCnt) {
           // error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
         }
-        // if we are overwritting something and it is going
-        // to be null or an object so decrement its refcnt
-        if (((JVMObject**)_jobject->fields)[w + 1] != 0)
-          ((JVMObject**)_jobject->fields)[w + 1]->stackCnt--;
 
-        ((JVMObject**)_jobject->fields)[w + 1] = __jobject;
-        __jobject->stackCnt++;
+        ((JVMObject**)_jobject->fields)[w] = __jobject;
         
         x += 1;
         jvm_DebugStack(&stack);
@@ -905,13 +901,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           break;
         }
         // we are inside the bounds
-        if (w >= (((uint64*)_jobject->fields)[0])) {
+        if (w >= _jobject->fieldCnt) {
           /// error, past end of array..
           error = JVM_ERROR_ARRAYOUTOFBOUNDS;
           break;
         }
 
-        __jobject = ((JVMObject**)_jobject->fields)[w + 1];
+        __jobject = ((JVMObject**)_jobject->fields)[w];
         if (__jobject == 0) {
           jvm_StackPush(&stack, 0, JVM_STACK_ISNULL);
         } else {
@@ -924,6 +920,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1] << 8 | code[x+2];
         _jobject = (JVMObject*)malloc(sizeof(JVMObject));
         _jobject->next = jvm->objects;
+        _jobject->type = JVM_OBJTYPE_OARRAY;
         jvm->objects = _jobject;
         /// allows us to know if this is a ref array for a type
         /// or if it is a primitive array=0 while obj array!=0
@@ -933,8 +930,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         _jobject->stackCnt = 0;
         jvm_StackPop(&stack, &result);
         argcnt = result.data;
-        _jobject->fields = (uint64*)malloc(sizeof(JVMObject*) * (argcnt + 1));
-        ((uintptr*)_jobject->fields)[0] = argcnt;
+        _jobject->fields = (uint64*)malloc(sizeof(JVMObject*) * argcnt);
+        _jobject->fieldCnt = argcnt;
         jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
         x += 3;
         break;
