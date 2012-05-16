@@ -114,6 +114,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   debugf("executing %s\n", methodName);
 
   /// find method specifiee
+  debugf("classname:%s\n", jvm_GetClassNameFromClass(jclass));
   method = jvm_FindMethodInClass(jclass, methodName, methodType);
   if (!method) {
     debugf("JVM_ERROR_METHODNOTFOUND\n");
@@ -929,7 +930,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
         a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
         _jobject->class = jvm_FindClassInBundle(bundle, a->string);
-        _jobject->refs = 0;
         _jobject->stackCnt = 0;
         jvm_StackPop(&stack, &result);
         argcnt = result.data;
@@ -1092,18 +1092,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             if (error < 0)
               break;
 
-            // decrement existing object if there
-            if (jclass->sfields[w].flags & JVM_STACK_ISOBJECTREF)
-              if (jclass->sfields[w].value)
-                ((JVMObject*)jclass->sfields[w].value)->stackCnt--;
-            // increment object we are placing there
-            if (result.flags & JVM_STACK_ISOBJECTREF)
-              if (result.data)
-                ((JVMObject*)result.data)->stackCnt++;
-            // go through and find our link in the objet's ref links
-              // increment refcnt
-            // if no link create one and set refcnt to 1
-
             // for the previous object we are about to overwrite
             // we need to do the same except decrement and unlink
             // if refcnt is 0
@@ -1166,25 +1154,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               debugf("error\n");
               break;
             }
-            // decrement existing object if there
-            if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
-              if (_jobject->_fields[w].value)
-                ((JVMObject*)_jobject->_fields[w].value)->stackCnt--;
-            // increment object we are placing there
-            if (result.flags & JVM_STACK_ISOBJECTREF)
-              if (result.data)
-                ((JVMObject*)result.data)->stackCnt++;
-            // go through and find our link in the objet's ref links
-              // increment refcnt
-            // if no link create one and set refcnt to 1
-            // for the previous object we are about to overwrite
-            // we need to do the same except decrement and unlink
-            // if refcnt is 0
               
             // actualy store it now
             _jobject->_fields[w].value = (uintptr)result.data;
             _jobject->_fields[w].aflags = result.flags;
-
             break;
           }
           
