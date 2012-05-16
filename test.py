@@ -56,7 +56,6 @@ for node in nodes:
   print('[%s] alpha..' % base, end = '')
   args = ['./rhino'] + deps + ['./tests/%s.class' % base]
   pd = subprocess.Popen(args, stdout = subprocess.PIPE)
-  pd.wait()
   d = pd.stdout.read()
   p = d.find(b'\ndone! result.data:')
   if p == -1:
