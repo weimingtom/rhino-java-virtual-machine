@@ -594,7 +594,7 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   memset(*out, 0, sizeof(JVMObject));
   jobject->class = jclass;
   jobject->stackCnt = 0;
-  jobject->type == JVM_OBJTYPE_OBJECT;
+  jobject->type = JVM_OBJTYPE_OBJECT;
   /// link us into global object chain
   jobject->next = jvm->objects;
   jvm->objects = jobject;
