@@ -464,7 +464,7 @@ int jvm_FieldTypeStringToFlags(JVMBundle *bundle, uint8 *typestr, JVMClass **cla
           debugf("could not find class in bundle\n");
           return JVM_ERROR_CLASSNOTFOUND;
         }
-        break;
+        return JVM_SUCCESS;
       case 'S':
         *flags |= JVM_STACK_ISSHORT;
         break;
@@ -544,6 +544,10 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
       error = jvm_FieldTypeStringToFlags(bundle, u8->string, &jclass, &fields[y].flags);
       debugf("made field %s<%s> flags:%u\n", fields[y].name, u8->string, fields[y].flags);
       // for object arrays this is needed (not primitive arrays)
+      if (jclass == 0) {
+        debugf("jclass! %s\n", u8->string);
+        exit(-9);
+      }
       fields[y].jclass = jclass;
       // valid for all types
       fields[y].value = 0;
@@ -590,6 +594,7 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   memset(*out, 0, sizeof(JVMObject));
   jobject->class = jclass;
   jobject->stackCnt = 0;
+  jobject->type == JVM_OBJTYPE_OBJECT;
   /// link us into global object chain
   jobject->next = jvm->objects;
   jvm->objects = jobject;
