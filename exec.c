@@ -1089,7 +1089,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               // }
             }
 
-            if (error)
+            if (error < 0)
               break;
 
             // decrement existing object if there
@@ -1119,7 +1119,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
 
         // if error go handle it
-        if (error)
+        if (error < 0)
           break;
 
         x += 3;
@@ -1139,11 +1139,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
         a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
         //tmp = a->string;
-        
         // look through obj's fields until we find
         // a matching entry then check the types
         for (w = 0; w < _jobject->fieldCnt; ++w) {
           if (strcmp(_jobject->_fields[w].name, a->string) == 0) {
+            debugf("eee\n");
             // matched name now check type
             if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
             {
@@ -1160,10 +1160,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                 break;
               }
             }
-
-            if (error)
+            debugf("ok:%i\n", error);
+            //exit(-4);
+            if (error < 0) {
+              debugf("error\n");
               break;
-            
+            }
             // decrement existing object if there
             if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
               if (_jobject->_fields[w].value)
@@ -1175,7 +1177,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             // go through and find our link in the objet's ref links
               // increment refcnt
             // if no link create one and set refcnt to 1
-
             // for the previous object we are about to overwrite
             // we need to do the same except decrement and unlink
             // if refcnt is 0
@@ -1190,7 +1191,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
         
         // if error go handle it
-        if (error)
+        if (error < 0)
           break;
 
         x += 3;
