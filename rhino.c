@@ -544,10 +544,11 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
       error = jvm_FieldTypeStringToFlags(bundle, u8->string, &jclass, &fields[y].flags);
       debugf("made field %s<%s> flags:%u\n", fields[y].name, u8->string, fields[y].flags);
       // for object arrays this is needed (not primitive arrays)
-      if (jclass == 0) {
-        debugf("jclass! %s\n", u8->string);
-        exit(-9);
-      }
+      // I think this should be okay for primitive fields it has to be commented out.
+      //if (jclass == 0) {
+      //  debugf("jclass! %s %x\n", u8->string, fields[y].flags);
+      //  exit(-9);
+      //}
       fields[y].jclass = jclass;
       // valid for all types
       fields[y].value = 0;
@@ -639,14 +640,76 @@ void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass) {
 
 #define JVM_HAND_LMAC(a, b, c, d) ((a) << 24 | (b) << 16 | (c) << 8 | (d))
 
-int jvm_system_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMClass *jclass,
+int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _JVMClass *jclass,
                                uint8 *method8, uint8 *type8, JVMLocal *locals,
                                int localCnt, JVMLocal *result) {
+  int                   x;
+  int                   c;
+  int                   error;
+  JVMBundleClass        *cbc;
+  JVMObject             *jobject;
+  JVMObject             *sobject;
+  JVMObject             *pobject;
+  uint8                 *cn;
   
   debugf("success:%s:%s\n", method8, type8);
-  //result->data = 800;
-  //result->flags = JVM_STACK_ISINT;
-  return 1;
+  // determine what is being called
+  for (x = 0, c = 0; method8[x] != 0; ++x)
+    c += method8[x];
+
+  debugf("native:%s:%x\n", method8, c);
+  switch (c) {
+    // PrintString
+    case 0x484:
+      sobject = (JVMObject*)locals[0].data;
+      if (!sobject)
+        break;
+      pobject = (JVMObject*)sobject->_fields[0].value;
+      if (!pobject)
+        break;
+      for (c = 0; c < pobject->fieldCnt; ++c) {
+        printf("%c", ((uint8*)pobject->fields)[c]);
+      }
+      printf("\n");
+      break;
+    // EnumClasses
+    case 0x463:
+      // get count of classes
+      for (c = 0, cbc = bundle->first; cbc != 0; cbc = cbc->next, ++c);
+      error = jvm_CreateObjectArray(jvm, bundle, "java/lang/String", c, &jobject);
+      if (error) {
+        return error;
+      }
+      for (c = 0, cbc = bundle->first; cbc != 0; cbc = cbc->next, ++c) {
+        // create string object
+        error = jvm_CreateObject(jvm, bundle, "java/lang/String", &sobject);
+        if (error)
+          return error;
+        // get string we need to put in it
+        cn = jvm_GetClassNameFromClass(cbc->jclass);
+        // get length of that string
+        for (x = 0; cn[x] != 0; ++x);
+        // create primitive array to hold string
+        error = jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, x, &pobject);
+        // fill primitive array
+        for (x = 0; cn[x] != 0; ++x)
+          ((uint8*)pobject->fields)[x] = cn[x];
+        if (error)
+           return error;
+        // add primitive array to String field
+        sobject->_fields[0].value = (uintptr)pobject;
+        sobject->_fields[0].jclass = 0;
+        sobject->_fields[0].aflags = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
+        // add to object array of String
+        jobject->fields[c] = (uint64)sobject;
+        //exit(-5);
+      }
+      // return the object array of String
+      result->data = (uintptr)jobject;
+      result->flags = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
+      return JVM_SUCCESS;
+  }
+  return JVM_SUCCESS;
 }
 
 /// garabage collector node structure
@@ -765,14 +828,12 @@ int main(int argc, char *argv[])
   jvm.objects = 0;
   jvm.cmark = 0;
 
-  /*
-  buf = jvm_ReadWholeFile("./java/lang/System.class", &size);
+  buf = jvm_ReadWholeFile("./Core/Core.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jclass->flags = JVM_CLASS_NATIVE;
-  jclass->nhand = jvm_system_handler;
+  jclass->nhand = jvm_core_core_handler;
   jvm_AddClassToBundle(&jbundle, jclass);
-  */
 
   for (x = 1; x < argc; ++x) {
     if (argv[x][0] == ':') {
