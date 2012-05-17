@@ -205,8 +205,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             __jobject->stackCnt = 1;
             debugf("_jobject->_fields:%x\n", _jobject->_fields);
             for (w = 0; w < _jobject->fieldCnt; ++w) {
-              debugf("%s.%s.%u\n", _jobject->_fields[w].name, "string", w);
-              if (strcmp(_jobject->_fields[w].name, "string") == 0) {
+              debugf("%s.%s.%u\n", _jobject->_fields[w].name, "data", w);
+              if (strcmp(_jobject->_fields[w].name, "data") == 0) {
                 _jobject->_fields[w].value = (uintptr)__jobject;
                 _jobject->_fields[w].aflags = JVM_STACK_ISARRAYREF |
                                               JVM_STACK_ISOBJECTREF |
