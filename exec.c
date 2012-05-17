@@ -11,7 +11,23 @@ void jvm_LocalPut(JVMLocal *locals, uint32 ndx, uintptr data, uint32 flags) {
     if (data)
       ((JVMObject*)data)->stackCnt++;
 }
+/// create object array
+int jvm_CreateObjectArray(JVM *jvm, JVMBundle *bundle, uint8 *className, uint32 size, JVMObject **_object) {
+  JVMObject     *_jobject;
 
+  _jobject = (JVMObject*)malloc(sizeof(JVMObject));
+  _jobject->next = jvm->objects;
+  _jobject->type = JVM_OBJTYPE_OARRAY;
+  jvm->objects = _jobject;
+  _jobject->class = jvm_FindClassInBundle(bundle, className);
+  _jobject->stackCnt = 0;
+  _jobject->fields = (uint64*)malloc(sizeof(JVMObject*) * size);
+  _jobject->fieldCnt = size;
+
+  *_object = _jobject;
+  return JVM_SUCCESS;
+  //jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+}
 /// create primitive array
 int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVMObject **jobject) {
   JVMObject             *_jobject;
@@ -60,7 +76,7 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   debugf("just created array\n");
   //jvm_DebugStack(&stack);
   *jobject = _jobject;
-
+  return JVM_SUCCESS;
 }
 
 int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
@@ -1131,7 +1147,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("here\n");
           a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
           debugf("##>%s\n", a->string);
-          exit(-4);
+          //exit(-4);
         }
         //tmp = a->string;
         // look through obj's fields until we find
@@ -1151,7 +1167,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                     break;
                 }
               }
-              debugf("ttt\n");
             } else {
               if (_jobject->_fields[w].flags != result.flags) {
                 debugf("** %u / %u\n", _jobject->_fields[w].flags, result.flags);
