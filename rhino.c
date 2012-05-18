@@ -315,7 +315,7 @@ int jvm_GetMethodTypeArgumentCount(const char *typestr) {
       case 'L':
         c++;
         /// run until we find semi-colon
-        for (++x; typestr[x] != ';' && x < 20; ++x);
+        for (++x; typestr[x] != ';'; ++x);
         break;
       default:
         c++;
@@ -340,7 +340,7 @@ void jvm_ScrubLocals(JVMLocal *locals) {
   int           y;
 
   for (y = 0; y < 256; ++y) {
-    if (locals[y].flags & JVM_STACK_ISOBJECTREF) {
+    if (locals[y].flags & JVM_STACK_ISOBJECTREF && locals[y].data != 0) {
       ((JVMObject*)locals[y].data)->stackCnt--;
       debugf("SCRUB LOCALS ref:%lx refcnt:%i\n", locals[y].data, ((JVMObject*)locals[y].data)->stackCnt);
     }
@@ -596,16 +596,16 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   jobject->class = jclass;
   jobject->stackCnt = 0;
   jobject->type = JVM_OBJTYPE_OBJECT;
-  /// link us into global object chain
+  // link us into global object chain
   jobject->next = jvm->objects;
   jvm->objects = jobject;
-  /// go through and create fields
-  //debugf("WWW\n");
+  // go through and create fields
   jvm_MakeObjectFields(jvm, bundle, jobject);
-  /// execute init method
+  // execute init method
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
-  /// call default constructor (no arguments)
+  // call default constructor (no arguments)
+  debugf("##>%x\n", jobject);
   return jvm_ExecuteObjectMethod(jvm, bundle, jclass, "<init>", "()V", &locals[0], 1, &result);
 }
 
@@ -662,15 +662,20 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
     // PrintString
     case 0x484:
       sobject = (JVMObject*)locals[0].data;
+      debugf("sobject %x\n", sobject);
       if (!sobject)
         break;
       pobject = (JVMObject*)sobject->_fields[0].value;
+      debugf("pobject %x %u\n", pobject, sobject->fieldCnt);
       if (!pobject)
         break;
+      
+      debugf("printc\n");
       for (c = 0; c < pobject->fieldCnt; ++c) {
         printf("%c", ((uint8*)pobject->fields)[c]);
       }
       printf("\n");
+      exit(-4);
       break;
     // EnumClasses
     case 0x463:
@@ -828,6 +833,9 @@ int main(int argc, char *argv[])
   jvm.objects = 0;
   jvm.cmark = 0;
 
+  //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
+  //printf("argcnt:%u\n", x);
+ 
   buf = jvm_ReadWholeFile("./Core/Core.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
