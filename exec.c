@@ -127,9 +127,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   //  jvm_exit(-9);
   //}
 
-  jvm_StackInit(&stack, 1024);
-  error = 0;
-
   debugf("executing %s\n", methodName);
 
   /// find method specifiee
@@ -149,13 +146,16 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   code = method->code->code;
   codesz = method->code->codeLength;
 
+  jvm_StackInit(&stack, method->code->maxStack);
+  error = 0;
+  
   debugf("method has code(%lx) of length %u\n", code, codesz);
   /// -----------------------------------------------------
   /// i think there is a way to determine how much local
   /// variable space is needed... but for now this will work
   /// -----------------------------------------------------
   /// 255 should be maximum local addressable
-  locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * 256);
+  locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
   /// copy provided arguments into locals
   for (x = 0; x < localCnt; ++x) {
     locals[x].data = _locals[x].data;
@@ -164,11 +164,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     if (locals[x].flags & JVM_STACK_ISOBJECTREF)
       if (locals[x].data)
         ((JVMObject*)locals[x].data)->stackCnt++;
-  }
-  /// zero the remainder of the locals
-  for (; x < 256; ++x) {
-    locals[x].data = 0;
-    locals[x].flags = 0;
   }
 
   debugf("execute code\n");

@@ -1,2 +1,2 @@
 default:
-	gcc *.c -o rhino
+	gcc -Os *.c -o rhino

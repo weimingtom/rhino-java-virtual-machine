@@ -899,6 +899,8 @@ int main(int argc, char *argv[])
     jvm_printf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
   }
 
+  jvm_PrintMemoryDiag();
+
   jvm_collect(&jvm);
   
   return 1;
