@@ -30,14 +30,14 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   vmin = msRead16(m);
   vmaj = msRead16(m);
   
-  class = (JVMClass*)malloc(sizeof(JVMClass));
+  class = (JVMClass*)jvm_malloc(sizeof(JVMClass));
   /*
     ==================================
     LOAD CONSTANT POOL TABLE
     ==================================
   */
   cpoolcnt = msRead16(m); 
-  pool = (JVMConstPoolItem**)malloc(sizeof(JVMConstPoolItem*) * cpoolcnt);
+  pool = (JVMConstPoolItem**)jvm_malloc(sizeof(JVMConstPoolItem*) * cpoolcnt);
   class->poolCnt = cpoolcnt;
   class->pool = pool;
   debugf("cpoolcnt:%u", cpoolcnt);
@@ -45,20 +45,20 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     tag = msRead8(m);
     switch (tag) {
       case TAG_INTEGER:
-        piit = (JVMConstPoolInteger*)malloc(sizeof(JVMConstPoolInteger));
+        piit = (JVMConstPoolInteger*)jvm_malloc(sizeof(JVMConstPoolInteger));
         pool[x] = (JVMConstPoolItem*)piit;
         piit->value = msRead32(m);
         piit->hdr.type = TAG_INTEGER;
         break;
       case TAG_STRING:
-        pist = (JVMConstPoolString*)malloc(sizeof(JVMConstPoolString));
+        pist = (JVMConstPoolString*)jvm_malloc(sizeof(JVMConstPoolString));
         pool[x] = (JVMConstPoolItem*)pist;
         pist->stringIndex = msRead16(m);
         pist->hdr.type = TAG_STRING;
         debugf("TAG_STRING stringIndex:%u\n", pist->stringIndex);
         break;
       case TAG_METHODREF:
-	pimr = (JVMConstPoolMethodRef*)malloc(sizeof(JVMConstPoolMethodRef));
+	pimr = (JVMConstPoolMethodRef*)jvm_malloc(sizeof(JVMConstPoolMethodRef));
 	pool[x] = (JVMConstPoolItem*)pimr;
 	pimr->nameIndex = msRead16(m);
 	pimr->descIndex = msRead16(m);
@@ -66,23 +66,23 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	debugf("TAG_METHODREF nameIndex:%u descIndex:%u\n", pimr->nameIndex, pimr->descIndex);
 	break;
       case TAG_CLASSINFO:
-	pici = (JVMConstPoolClassInfo*)malloc(sizeof(JVMConstPoolClassInfo));
+	pici = (JVMConstPoolClassInfo*)jvm_malloc(sizeof(JVMConstPoolClassInfo));
 	pool[x] = (JVMConstPoolItem*)pici;
 	pici->nameIndex = msRead16(m);
 	pici->hdr.type = TAG_CLASSINFO;
 	break;
       case TAG_UTF8:
-	piu8 = (JVMConstPoolUtf8*)malloc(sizeof(JVMConstPoolUtf8));
+	piu8 = (JVMConstPoolUtf8*)jvm_malloc(sizeof(JVMConstPoolUtf8));
 	pool[x] = (JVMConstPoolItem*)piu8;
 	piu8->size = msRead16(m);
-	piu8->string = (uint8*)malloc(piu8->size + 1);
+	piu8->string = (uint8*)jvm_malloc(piu8->size + 1);
 	msRead(m, piu8->size, piu8->string);
 	piu8->string[piu8->size] = 0;
 	piu8->hdr.type = TAG_UTF8;
 	debugf("TAG_UTF8: size:%u string:%s\n", piu8->size, piu8->string);
 	break;
       case TAG_NAMEANDTYPE:
-	pint = (JVMConstPoolNameAndType*)malloc(sizeof(JVMConstPoolNameAndType));
+	pint = (JVMConstPoolNameAndType*)jvm_malloc(sizeof(JVMConstPoolNameAndType));
 	pool[x] = (JVMConstPoolItem*)pint;
 	pint->nameIndex = msRead16(m);
 	pint->descIndex = msRead16(m);
@@ -91,7 +91,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 		pint->descIndex);
 	break;
       case TAG_FIELDREF:
-	pifr = (JVMConstPoolFieldRef*)malloc(sizeof(JVMConstPoolFieldRef));
+	pifr = (JVMConstPoolFieldRef*)jvm_malloc(sizeof(JVMConstPoolFieldRef));
 	pool[x] = (JVMConstPoolItem*)pifr;
 	pifr->classIndex = msRead16(m);
 	pifr->nameAndTypeIndex = msRead16(m);
@@ -101,7 +101,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	break;
       default:
 	debugf("unknown tag %u in constant pool\n\n", tag);
-	exit(-1);
+	jvm_exit(-1);
     }
   }
   /*
@@ -118,8 +118,8 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     =====================
   */
   class->ifaceCnt = msRead16(m);
-  printf("class->ifaceCnt:%u\n", class->ifaceCnt);
-  class->interfaces = (uint16*)malloc(class->ifaceCnt);
+  jvm_printf("class->ifaceCnt:%u\n", class->ifaceCnt);
+  class->interfaces = (uint16*)jvm_malloc(class->ifaceCnt);
   for (x = 0; x < class->ifaceCnt; ++x)
     class->interfaces[x] = msRead16(m);
   /*
@@ -128,7 +128,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     ======================
   */
   class->fieldCnt = msRead16(m);
-  class->fields = (JVMClassField*)malloc(sizeof(JVMClassField) * class->fieldCnt);
+  class->fields = (JVMClassField*)jvm_malloc(sizeof(JVMClassField) * class->fieldCnt);
   for (x = 0; x < class->fieldCnt; ++x) {
     class->fields[x].accessFlags = msRead16(m);
     class->fields[x].nameIndex = msRead16(m);
@@ -136,7 +136,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->fields[x].attrCount = msRead16(m);
     if (class->fields[x].attrCount > 0) {
         debugf("class field attribute support not implemented!\n");
-        exit(-1);
+        jvm_exit(-1);
     }
     debugf("accessFlags:%u nameIndex:%u descIndex:%u attrCount:%u\n", class->fields[x].accessFlags, class->fields[x].nameIndex, class->fields[x].descIndex,class->fields[x].attrCount
     );
@@ -147,7 +147,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     =======================
   */
   class->methodCnt = msRead16(m);
-  class->methods = (JVMMethod*)malloc(sizeof(JVMMethod) * class->methodCnt);
+  class->methods = (JVMMethod*)jvm_malloc(sizeof(JVMMethod) * class->methodCnt);
   for (x = 0; x < class->methodCnt; ++x) {
     /// in the event it has no actual code attribute
     class->methods[x].code = 0;
@@ -159,7 +159,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     debugf("--------------->method:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].nameIndex - 1])->string);
     debugf("--------------->desc:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].descIndex - 1])->string);
     
-    class->methods[x].attrs = (JVMAttribute*)malloc(sizeof(JVMAttribute) * 
+    class->methods[x].attrs = (JVMAttribute*)jvm_malloc(sizeof(JVMAttribute) *
       class->methods[x].attrCount);
     for (y = 0; y < class->methods[x].attrCount; ++y) {
       class->methods[x].attrs[y].nameIndex = msRead16(m);
@@ -168,9 +168,9 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
       string = ((JVMConstPoolUtf8*)class->pool[class->methods[x].attrs[y].nameIndex - 1])->string;
       debugf("name:%s\n", string);
       debugf("attrlen:%u\n", class->methods[x].attrs[y].length);
-      if (strcmp(string, "Code") == 0) {
+      if (jvm_strcmp(string, "Code") == 0) {
         /// special attribute we need to fully parse out
-        class->methods[x].code = (JVMCodeAttribute*)malloc(sizeof(JVMCodeAttribute));
+        class->methods[x].code = (JVMCodeAttribute*)jvm_malloc(sizeof(JVMCodeAttribute));
         class->methods[x].code->attrNameIndex = class->methods[x].attrs[y].nameIndex;
         class->methods[x].code->attrLength = class->methods[x].attrs[y].length;
         /// not used but lets set it up to be safe incase accidentally accessed
@@ -182,13 +182,13 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
         class->methods[x].code->maxLocals = msRead16(m);
         class->methods[x].code->codeLength = msRead32(m);
         /// read code segment
-        class->methods[x].code->code = (uint8*)malloc(class->methods[x].code->codeLength);
+        class->methods[x].code->code = (uint8*)jvm_malloc(class->methods[x].code->codeLength);
         msRead(m, class->methods[x].code->codeLength, class->methods[x].code->code);
         /// read exception table
         class->methods[x].code->eTableCount = msRead16(m);
         class->methods[x].code->eTable = 0;
         if (class->methods[x].code->eTableCount) {
-          class->methods[x].code->eTable = (JVMExceptionTable*)malloc(sizeof(JVMExceptionTable) * class->methods[x].code->eTableCount);
+          class->methods[x].code->eTable = (JVMExceptionTable*)jvm_malloc(sizeof(JVMExceptionTable) * class->methods[x].code->eTableCount);
           for (z = 0; z < class->methods[x].code->eTableCount; z++) {
             class->methods[x].code->eTable[z].pcStart = msRead16(m);
             class->methods[x].code->eTable[z].pcEnd = msRead16(m);
@@ -200,20 +200,20 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
         class->methods[x].code->attrsCount = msRead16(m);
         class->methods[x].code->attrs = 0;
         if (class->methods[x].code->attrsCount) {
-          class->methods[x].code->attrs = (JVMAttribute*)malloc(sizeof(JVMAttribute) * class->methods[x].code->attrsCount);
+          class->methods[x].code->attrs = (JVMAttribute*)jvm_malloc(sizeof(JVMAttribute) * class->methods[x].code->attrsCount);
           /// read attributes for just this code not method?
           debugf("class->methods[x].code->attrsCount:%u\n", class->methods[x].code->attrsCount);
           for (z = 0; z < class->methods[x].code->attrsCount; ++z) {
             class->methods[x].code->attrs[z].nameIndex = msRead16(m);
             class->methods[x].code->attrs[z].length = msRead32(m);
-            class->methods[x].code->attrs[z].info = (uint8*)malloc(class->methods[x].code->attrs[z].length);
+            class->methods[x].code->attrs[z].info = (uint8*)jvm_malloc(class->methods[x].code->attrs[z].length);
             msRead(m, class->methods[x].code->attrs[z].length, class->methods[x].code->attrs[z].info);
           }
         }
         debugf("done reading code attribute\n");
       } else {
         /// standard operation for attributes we do not really understand
-        class->methods[x].attrs[y].info = (uint8*)malloc(class->methods[x].attrs[y].length);
+        class->methods[x].attrs[y].info = (uint8*)jvm_malloc(class->methods[x].attrs[y].length);
         msRead(m, class->methods[x].attrs[y].length, class->methods[x].attrs[y].info);
       }
     }
@@ -224,11 +224,11 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     ======================
   */
   class->attrCnt = msRead16(m);
-  class->attrs = (JVMAttribute*)malloc(sizeof(JVMAttribute) * class->attrCnt);
+  class->attrs = (JVMAttribute*)jvm_malloc(sizeof(JVMAttribute) * class->attrCnt);
   for (x = 0; x < class->attrCnt; ++x) {
     class->attrs[x].nameIndex = msRead16(m);
     class->attrs[x].length = msRead32(m);
-    class->attrs[x].info = (uint8*)malloc(class->attrs[x].length);
+    class->attrs[x].info = (uint8*)jvm_malloc(class->attrs[x].length);
     msRead(m, class->attrs[x].length, class->attrs[x].info);
   }
   return class;
@@ -247,7 +247,7 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
     b = (JVMConstPoolClassInfo*)jbclass->jclass->pool[a - 1];
     c = (JVMConstPoolUtf8*)jbclass->jclass->pool[b->nameIndex - 1];
     debugf("looking for class [%s]=?[%s]\n", className, c->string);
-    if (strcmp(c->string, className) == 0)
+    if (jvm_strcmp(c->string, className) == 0)
       return jbclass->jclass;
   }
   /*
@@ -269,8 +269,8 @@ JVMMethod* jvm_FindMethodInClass(JVMClass *jclass, const char *methodName, const
     /// get method type
     b = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].descIndex - 1];
     debugf("findmeth:[%s:%s]==[%s:%s]\n", methodName, methodType, a->string, b->string);
-    if (strcmp(a->string, methodName) == 0)
-      if (strcmp(b->string, methodType) == 0)
+    if (jvm_strcmp(a->string, methodName) == 0)
+      if (jvm_strcmp(b->string, methodType) == 0)
         return &jclass->methods[x];
   }
   debugf("could not find method %s of type %s\n", methodName, methodType);
@@ -376,12 +376,12 @@ int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
     ci = (JVMConstPoolClassInfo*)c->pool[c->thisClass - 1];
     u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
 
-    if (strcmp((const char*)u8->string, className) == 0)
+    if (jvm_strcmp((const char*)u8->string, className) == 0)
       return 1;
       /// if equals exit with true
       
     /// no super class exit with false
-    if (strcmp(u8->string, "java/lang/Object") == 0)
+    if (jvm_strcmp(u8->string, "java/lang/Object") == 0)
       break;
     /// load class for specified super class
     ci = (JVMConstPoolClassInfo*)c->pool[c->superClass - 1];
@@ -486,7 +486,7 @@ int jvm_MakeStaticFields(JVM *jvm, JVMBundle *bundle, JVMClass *class) {
     if (class->fields[x].accessFlags & JVM_ACC_STATIC)
       y++;
   class->sfieldCnt = y;
-  class->sfields = (JVMObjectField*)malloc(sizeof(JVMObjectField) * y);
+  class->sfields = (JVMObjectField*)jvm_malloc(sizeof(JVMObjectField) * y);
   for (x = 0, y = 0; x < class->fieldCnt; ++x) {
     if (class->fields[x].accessFlags & JVM_ACC_STATIC) {
       class->sfields[y].name = ((JVMConstPoolUtf8*)class->pool[class->fields[x].nameIndex - 1])->string;
@@ -526,7 +526,7 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
   int                           error;
   
   fcnt = jvm_CountObjectFields(jvm, bundle, jobject);
-  fields = (JVMObjectField*)malloc(sizeof(JVMObjectField) * fcnt);
+  fields = (JVMObjectField*)jvm_malloc(sizeof(JVMObjectField) * fcnt);
   jobject->fieldCnt = fcnt;
   jobject->_fields = fields;
 
@@ -547,7 +547,7 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
       // I think this should be okay for primitive fields it has to be commented out.
       //if (jclass == 0) {
       //  debugf("jclass! %s %x\n", u8->string, fields[y].flags);
-      //  exit(-9);
+      //  jvm_exit(-9);
       //}
       fields[y].jclass = jclass;
       // valid for all types
@@ -588,7 +588,7 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
     debugf("class not found!\n");
     return JVM_ERROR_CLASSNOTFOUND;
   }
-  jobject = (JVMObject*)malloc(sizeof(JVMObject));
+  jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
   *out = jobject;
   if (!jobject)
     return JVM_ERROR_OUTOFMEMORY;
@@ -616,21 +616,22 @@ uint8* jvm_ReadWholeFile(const char *path, uint32 *size) {
   fp = fopen(path, "rb");
   if (!fp) {
     debugf("error could not open file %s", path);
-    exit(-4);
+    jvm_exit(-4);
   }
   fseek(fp, 0, 2);
   *size = ftell(fp);
   fseek(fp, 0, 0);
-  buf = (uint8*)malloc(*size);
+  buf = (uint8*)jvm_malloc(*size);
   fread(buf, 1, *size, fp);
   fclose(fp);
+  
   return buf;
 }
 
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass) {
   JVMBundleClass                *jbclass;
 
-  jbclass = (JVMBundleClass*)malloc(sizeof(JVMBundleClass));
+  jbclass = (JVMBundleClass*)jvm_malloc(sizeof(JVMBundleClass));
   jbclass->jclass = jclass;
 
   jbclass->next = jbundle->first;
@@ -672,10 +673,10 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
       
       debugf("printc:");
       for (c = 0; c < pobject->fieldCnt; ++c) {
-        printf("%c", ((uint8*)pobject->fields)[c]);
+        jvm_printf("%c", ((uint8*)pobject->fields)[c]);
       }
-      printf("\n");
-      exit(-4);
+      jvm_printf("\n");
+      jvm_exit(-4);
       break;
     // EnumClasses
     case 0x463:
@@ -707,7 +708,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
         sobject->_fields[0].aflags = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
         // add to object array of String
         jobject->fields[c] = (uint64)sobject;
-        //exit(-5);
+        //jvm_exit(-5);
       }
       // return the object array of String
       result->data = (uintptr)jobject;
@@ -739,7 +740,7 @@ int jvm_collect(JVM *jvm) {
   // add all objects to ra
   for (co = jvm->objects; co != 0; co = co->next) {
     if (co->stackCnt > 0) {
-      ca = (JVMCollect*)malloc(sizeof(JVMCollect));
+      ca = (JVMCollect*)jvm_malloc(sizeof(JVMCollect));
       ca->object = co;
       ca->next = ra;
       ra = ca;
@@ -769,7 +770,7 @@ int jvm_collect(JVM *jvm) {
               if (((JVMObject*)cof[x].value)->cmark == cmark)
                 continue;
               // it will be marked when reading from ra chain
-              cb = (JVMCollect*)malloc(sizeof(JVMCollect));
+              cb = (JVMCollect*)jvm_malloc(sizeof(JVMCollect));
               cb->object = (JVMObject*)cof[x].value;
               cb->next = rb;
               rb = cb;
@@ -782,7 +783,7 @@ int jvm_collect(JVM *jvm) {
           for (x = 0; x < ca->object->fieldCnt; ++x) {
             if (caf[x]->cmark == cmark)
               continue;
-            cb = (JVMCollect*)malloc(sizeof(JVMCollect));
+            cb = (JVMCollect*)jvm_malloc(sizeof(JVMCollect));
             cb->object = (JVMObject*)caf[x];
             cb->next = rb;
             rb = cb;
@@ -797,7 +798,7 @@ int jvm_collect(JVM *jvm) {
     // clear ra and reset it to empty
     for (ca = ra; ca != 0; ca = _ca) {
       _ca = ca->next;
-      free(ca);
+      jvm_free(ca);
     }
     // switch ra and rb
     ra = rb;
@@ -832,9 +833,9 @@ int main(int argc, char *argv[])
   
   jvm.objects = 0;
   jvm.cmark = 0;
-
+  
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
-  //printf("argcnt:%u\n", x);
+  //jvm_printf("argcnt:%u\n", x);
  
   buf = jvm_ReadWholeFile("./Core/Core.class", &size);
   msWrap(&m, buf, size);
@@ -866,7 +867,7 @@ int main(int argc, char *argv[])
   
   if (!jobject) {
     debugf("could not create object?\n");
-    exit(-1);
+    jvm_exit(-1);
   }
   
   locals[0].data = (uint64)jobject;
@@ -877,11 +878,11 @@ int main(int argc, char *argv[])
     return -1;
   }
   
-  printf("done! result.data:%i result.flags:%u\n", jvm_result.data, jvm_result.flags);
+  jvm_printf("done! result.data:%i result.flags:%u\n", jvm_result.data, jvm_result.flags);
 
-  printf("---dumping objects---\n");
+  jvm_printf("---dumping objects---\n");
   for (jobject = jvm.objects; jobject != 0; jobject = jobject->next) {
-    printf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
+    jvm_printf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
   }
 
   jvm_collect(&jvm);

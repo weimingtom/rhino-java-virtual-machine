@@ -1,9 +1,7 @@
 #ifndef RJVM_RJVM_H
 #define RJVM_RJVM_H
-#include <stdlib.h>
-#include <string.h>
-#include <malloc.h>
-#include <stdio.h>
+#include "port.h"
+#include "std.h"
 
 struct _JVMMemoryStream;
 
@@ -17,17 +15,6 @@ struct _JVMMemoryStream;
 #define TAG_FLOAT                       4
 #define TAG_LONG                        5
 #define TAG_DOUBLE                      6
-
-typedef unsigned long long int  uint64;
-typedef signed long long int    int64;
-typedef unsigned int            uint32;
-typedef unsigned short          uint16;
-typedef unsigned char           uint8;
-typedef signed int              int32;
-typedef signed short            int16;
-typedef signed char             int8;
-typedef uint64                  uintptr;
-typedef int64                   intptr;
 
 #define JVM_SUCCESS                      0
 #define JVM_ERROR_METHODNOTFOUND        -1
@@ -84,7 +71,7 @@ typedef int64                   intptr;
 #define JVM_OBJTYPE_OBJECT      2
 #define JVM_OBJTYPE_OARRAY      3
 
-#define debugf printf("[%s:%u] ", __FUNCTION__, __LINE__); printf
+#define debugf jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
 
 typedef struct _JVMStack {
   uintptr               *data;

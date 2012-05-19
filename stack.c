@@ -3,13 +3,13 @@
 void jvm_StackInit(JVMStack *stack, uint32 max) {
   stack->max = max;
   stack->pos = 0;
-  stack->data = (uint64*)malloc(sizeof(uint64) * max);
-  stack->flags = (uint32*)malloc(sizeof(uint32) * max);
+  stack->data = (uint64*)jvm_malloc(sizeof(uint64) * max);
+  stack->flags = (uint32*)jvm_malloc(sizeof(uint32) * max);
 }
 
 void jvm_StackFree(JVMStack *stack) {
-  free(stack->data);
-  free(stack->flags);
+  jvm_free(stack->data);
+  jvm_free(stack->flags);
 }
 
 int jvm_StackMore(JVMStack *stack) {
