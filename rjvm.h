@@ -29,7 +29,7 @@ typedef signed char             int8;
 typedef uint64                  uintptr;
 typedef int64                   intptr;
 
-#define JVM_SUCCESS                      1
+#define JVM_SUCCESS                      0
 #define JVM_ERROR_METHODNOTFOUND        -1
 #define JVM_ERROR_OUTOFMEMORY           -2
 #define JVM_ERROR_UNKNOWNOPCODE         -3
@@ -279,6 +279,17 @@ typedef struct _JVM {
   uint16                cmark;
 } JVM;
 
+// java stores all integers in big-endian
+#define LENDIAN
+#ifdef LENDIAN
+#define noths(x) ((x) >> 8 | ((x) & 0xff) << 8)
+#define nothl(x) ((x) >> 24 | ((x) & 0xff0000) >> 8 | ((x) & 0xff00) << 8 | (x) << 24)
+#endif
+#ifdef BENDIAN
+#define noths(x) x
+#define nothl(x) x
+#endif
+
 JVMClass* jvm_LoadClass(struct _JVMMemoryStream *m);
 JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className);
 JVMMethod* jvm_FindMethodInClass(JVMClass *jclass, const char *methodName, const char *methodType);
@@ -291,4 +302,5 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
 uint8* jvm_ReadWholeFile(const char *path, uint32 *size);
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass);
 uint8* jvm_GetClassNameFromClass(JVMClass *c);
+int jvm_collect(JVM *jvm);
 #endif

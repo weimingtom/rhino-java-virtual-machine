@@ -1,9 +1,25 @@
-//./java/lang/Object.class :tests/BlasterCaster
+//./java/lang/Object.class ./java/lang/Array.class :tests/BlasterCaster
 package tests;
 
 class BlasterCaster {
   public BlasterCaster                  aa;
   public BlasterCaster                  bb;
+
+  public int arraymess(int r) {
+    byte[]      a;
+    int         x;
+
+    a = new byte[256];
+    a = new byte[256];
+
+    a[4] = (byte)r;
+    a[5] = (byte)4;
+
+    for (x = 0; x < 256; ++x)
+      a[x] = (byte)(x * x + r);
+
+    return a[4] + a[5] + r;
+  }
 
   public int main() {
     short       a;
@@ -46,7 +62,7 @@ class BlasterCaster {
 
     r = ~r;
 
-    return r;
+    return arraymess(r);
   }
 
   public static void main(String[] arg) {

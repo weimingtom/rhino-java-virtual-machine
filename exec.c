@@ -1,9 +1,6 @@
 #include "rjvm.h"
 #include "exec.h"
 
-int g_dbg = 0;
-int g_dbg2 = 0;
-
 void jvm_LocalPut(JVMLocal *locals, uint32 ndx, uintptr data, uint32 flags) {
   if (locals[ndx].flags & JVM_STACK_ISOBJECTREF)
     if (locals[ndx].data)
@@ -101,10 +98,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// mostly temporary stuff.. used in small blocks
   /// check around but should be safe to use here
   /// and there for small scopes
+  int32                        *map;            // switchtable
   int32                         _error;
   JVMLocal                      result;
   JVMLocal                      result2;
-  intptr                        y, w, z, g;
+  intptr                        y, w, z, g;     // all
+  uint32                        k;              // switchtable
+  int32                         v;              // switchtable
   int32                         eresult;
   JVMClass                      *_jclass;
   JVMObject                     *__jobject;
@@ -180,12 +180,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", _jobject, _jobject->stackCnt, jvm_GetClassNameFromClass(_jobject->class));
     }
     debugf("\e[7;31mopcode(%u/%u):%x className:%s methodName:%s\e[m\n", x, codesz, opcode, jvm_GetClassNameFromClass(jclass), methodName);
-    if (g_dbg == 14 && g_dbg2 == 2) {
-      debugf("@@here return\n");
-    } 
-    if (g_dbg == 14)
-      g_dbg2++;
-    
     jvm_DebugStack(&stack);
     //fgetc(stdin);
     switch (opcode) {
@@ -1213,6 +1207,68 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
         x += 3;
         break;
+      /// tableswitch
+      case 0xaa:
+        jvm_StackPop(&stack, &result);
+        w = (uintptr)&code[x];
+        if (w & 0x3)
+          w = (w & ~0x3) + 4;
+        else
+          w += 4;
+        debugf("code[%x]%lx w:%lx\n", x, (uintptr)&code[x], w);
+
+        map = (uint32*)(w);
+
+        debugf("db:%i lb:%i hb:%i\n", nothl(map[0]), nothl(map[1]), nothl(map[2]));
+        
+        // too low
+        if ((int32)result.data < (int32)nothl(map[1])) {
+          debugf("too low\n");
+          x += (int32)nothl(map[0]);
+          break;
+        }
+        // too high
+        if ((int32)result.data > (int32)nothl(map[2])) {
+          debugf("too high\n");
+          x += (int32)nothl(map[0]);
+          break;
+        }
+        w = ((int32)result.data - (int32)nothl(map[1]));
+        x += nothl(map[3 + w]);
+        debugf("ok:%i\n", nothl(map[3 + w]));
+        break;
+      /// lookupswitch
+      case 0xab:
+        jvm_StackPop(&stack, &result);
+        w = (uintptr)&code[x];
+        if (w & 0x3)
+          w = (w & ~0x3) + 4;
+        else
+          w += 4;
+        debugf("code[%x]%lx w:%lx\n", x, (uintptr)&code[x], w);
+        
+        map = (uint32*)(w);
+
+        debugf("x:%u w:%u\n", (uintptr)&code[x], w);
+        debugf("--- %x %i %i\n", nothl(map[0]), nothl(map[1]), nothl(map[2]));
+        for (y = 0; y < nothl(map[1]); ++y) {
+           debugf("map:%i:%i\n", nothl(map[y*2+2]), nothl(map[y*2+3]));
+        }
+        for (y = 0; y < nothl(map[1]); ++y) {
+          v = (int32)nothl(map[y*2+3]);
+          k = nothl(map[y*2+2]);
+          debugf("_map:%i:%i:%i\n", k, v, result.data);
+          if ((uint32)result.data == k) {
+            debugf("match %i %i\n", result.data, k, v);
+            x += (int32)v;
+            break;
+          }
+        }
+        if (y >= nothl(map[1]))
+          x += (int32)nothl(map[0]);
+        //debugf("end switch\n");
+        //exit(-6);
+        break;
       /// invokestatic
       case 0xb8:
       /// invokevirtual
@@ -1323,14 +1379,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
            eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
          }
          free(_locals);
-      if (g_dbg == 14 && g_dbg2 == 3) {
-        debugf("@@here return %u\n", argcnt);
-        exit(-9);
-      }         
-         
-         if (g_dbg == 13) {
-            debugf("set g_dbg\n");
-         } g_dbg++;
+
+         debugf("##out\n");
          
          if (eresult < 0) {
            error = eresult;
@@ -1372,7 +1422,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          //if (locals[0].flags & JVM_STACK_ISOBJECTREF)
          // jvm_ScrubObjectFields(locals[0].data);
          jvm_ScrubStack(&stack);
+         debugf("##out\n");
          jvm_ScrubLocals(locals);
+         debugf("##out\n");
          jvm_StackFree(&stack);
          free(locals);
          return JVM_SUCCESS;

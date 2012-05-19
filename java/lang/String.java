@@ -1,7 +1,8 @@
 package java.lang;
 
 public class String {
-  byte[]        data;
+  private byte[]        data;
+
   public String() {
   }
 
@@ -17,6 +18,47 @@ public class String {
 
   public char charAt(int index) {
     return (char)data[index];
+  }
+
+  public static int test(int a, int b) {
+    return a;
+  }
+
+  public static String format(String sfmt, Object... args) {
+    byte[]      fmt;
+    byte[]      buf;
+    byte[]      src;
+    int         x;
+    int         y;
+    int         z;
+    int         a;
+
+    fmt = sfmt.data;
+    buf = new byte[256];
+
+    a = 0;
+    y = 0;
+    for (x = 0; x < fmt.length; ++x) {
+      if (fmt[x] == '%') {
+        switch (fmt[x + 1]) {
+          case 's':
+            src = ((String)args[a++]).data;
+            for (z = 0; z < src.length; ++z)
+              buf[y++] = src[z];
+            break;
+          case 'i':
+            buf[y++] = '@';
+            break;
+          default:
+            buf[y++] = fmt[x];
+            break;
+        }
+        x++;
+      } else {
+        buf[y++] = fmt[x];
+      }
+    }
+    return new String(buf);
   }
 
   public int compareTo(String str) {
@@ -63,5 +105,4 @@ public class String {
 
     return new String(n);
   }
-
 }

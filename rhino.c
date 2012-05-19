@@ -670,7 +670,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
       if (!pobject)
         break;
       
-      debugf("printc\n");
+      debugf("printc:");
       for (c = 0; c < pobject->fieldCnt; ++c) {
         printf("%c", ((uint8*)pobject->fields)[c]);
       }
@@ -806,9 +806,9 @@ int jvm_collect(JVM *jvm) {
 
   for (co = jvm->objects; co != 0; co = co->next) {
     if ((co->stackCnt == 0) && (co->cmark != cmark)) {
-      debugf("FREE type:%x obj:%x cmark:%x\n", co->type, co, co->cmark);
+      debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u\n", co->type, co, co->cmark, co->stackCnt);
     } else {
-      debugf("KEEP type:%x obj:%x cmark:%x\n", co->type, co, co->cmark);
+      debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u\n", co->type, co, co->cmark, co->stackCnt);
     }
   }
   return 1;
