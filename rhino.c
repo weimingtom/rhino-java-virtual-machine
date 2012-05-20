@@ -333,11 +333,12 @@ void jvm_ScrubObjectFields(JVMObject *jobject) {
   }
 }
 
-void jvm_ScrubLocals(JVMLocal *locals) {
+void jvm_ScrubLocals(JVMLocal *locals, uint8 maxLocals) {
   int           y;
 
-  for (y = 0; y < 256; ++y) {
+  for (y = 0; y < maxLocals; ++y) {
     if (locals[y].flags & JVM_STACK_ISOBJECTREF && locals[y].data != 0) {
+      debugf("locals[%u].data:%x flags:%x\n", y, locals[y].data, locals[y].flags);
       ((JVMObject*)locals[y].data)->stackCnt--;
       debugf("SCRUB LOCALS ref:%lx refcnt:%i\n", locals[y].data, ((JVMObject*)locals[y].data)->stackCnt);
     }
@@ -854,6 +855,7 @@ int main(int argc, char *argv[])
   jclass = jvm_LoadClass(&m);
   jclass->flags = JVM_CLASS_NATIVE;
   jclass->nhand = jvm_core_core_handler;
+  jvm_free(buf);
   jvm_AddClassToBundle(&jbundle, jclass);
 
   for (x = 1; x < argc; ++x) {
@@ -865,6 +867,7 @@ int main(int argc, char *argv[])
       buf = jvm_ReadWholeFile(argv[x], &size);
       msWrap(&m, buf, size);
       jclass = jvm_LoadClass(&m);
+      jvm_free(buf);
       debugf("@@>jclass: %lx\n", jclass);
       jvm_AddClassToBundle(&jbundle, jclass);
     }

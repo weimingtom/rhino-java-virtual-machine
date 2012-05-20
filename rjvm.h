@@ -282,7 +282,7 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className);
 JVMMethod* jvm_FindMethodInClass(JVMClass *jclass, const char *methodName, const char *methodType);
 int jvm_IsMethodReturnTypeVoid(const char *typestr);
 int jvm_GetMethodTypeArgumentCount(const char *typestr);
-void jvm_ScrubLocals(JVMLocal *locals);
+void jvm_ScrubLocals(JVMLocal *locals, uint8 maxLocals);
 void jvm_ScrubStack(JVMStack *stack);
 int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className);
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out);

@@ -157,6 +157,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// 255 should be maximum local addressable
   locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
   /// copy provided arguments into locals
+  debugf("----->maxLocals:%x\n", method->code->maxLocals);
   for (x = 0; x < localCnt; ++x) {
     locals[x].data = _locals[x].data;
     locals[x].flags = _locals[x].flags;
@@ -195,7 +196,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             for (w = 0; a->string[w] != 0; ++w);
             // create java/lang/String
             debugf("***********************************\n");
-            jvm_CreateObject(jvm, bundle, "java/lang/String", &_jobject);
+            _jobject = 0;
+            if(jvm_CreateObject(jvm, bundle, "java/lang/String", &_jobject)) {
+              debugf("stopped\n");
+              exit(-4);
+            }
+            exit(-8);
             // create byte array to hold string
             /// todo: ref our byte[] to String
             /// todo: also do for putfield and getfield opcodes
@@ -1417,9 +1423,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          //if (locals[0].flags & JVM_STACK_ISOBJECTREF)
          // jvm_ScrubObjectFields(locals[0].data);
          jvm_ScrubStack(&stack);
-         debugf("##out\n");
-         jvm_ScrubLocals(locals);
-         debugf("##out\n");
+         debugf("##out1\n");
+         jvm_ScrubLocals(locals, method->code->maxLocals);
+         debugf("##out2\n");
          jvm_StackFree(&stack);
          jvm_free(locals);
          return JVM_SUCCESS;
@@ -1453,7 +1459,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       }
 
       jvm_ScrubStack(&stack);
-      jvm_ScrubLocals(locals);
+      jvm_ScrubLocals(locals, method->code->maxLocals);
       /// are we between an exception handler?
       debugf("checking if inside exception handler..\n");
       for (y = 0; y < method->code->eTableCount; ++y) {
