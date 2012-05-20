@@ -47,7 +47,7 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   }
   _jobject->fields = 0;
   _jobject->stackCnt = 0;
-
+  _jobject->cmark = 0;
   switch(type) {
     case JVM_ATYPE_LONG:
       _jobject->fields = (uint64*)jvm_malloc(sizeof(uint64) * cnt);
@@ -76,7 +76,6 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   }
   _jobject->fieldCnt = (uintptr)cnt;
   //jvm_StackPush(&stack, (uint64)_jobject, (y << 4) | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
-  debugf("just created array\n");
   //jvm_DebugStack(&stack);
   *jobject = _jobject;
   return JVM_SUCCESS;
@@ -149,7 +148,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   code = method->code->code;
   codesz = method->code->codeLength;
 
-  jvm_StackInit(&stack, method->code->maxStack);
+  // weird bug.. i need to add a little onto the stack because
+  // it likes to run over the end a little.. maybe this is just
+  // a bandaid and a deeper problem lies to be found
+  jvm_StackInit(&stack, method->code->maxStack + 4);
   error = 0;
   
   debugf("method has code(%lx) of length %u\n", code, codesz);
@@ -186,6 +188,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", _jobject, _jobject->stackCnt, jvm_GetClassNameFromClass(_jobject->class));
     }
     debugf("\e[7;31mopcode(%u/%u):%x className:%s methodName:%s\e[m\n", x, codesz, opcode, jvm_GetClassNameFromClass(jclass), methodName);
+
+    for (_jobject = jvm->objects; _jobject != 0; _jobject = _jobject->next) {
+      if (_jobject->cmark == 12032) {
+        debugf("object:%x object->cmark:%x set\n", _jobject, 12032);
+        exit(-5);
+      }
+    }
+    
     jvm_DebugStack(&stack);
     //fgetc(stdin);
     switch (opcode) {
@@ -969,9 +979,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// newarray
       case 0xbc:
-        /// hack around JVMObject so reference counting
-        /// logic can still work, might need some unions
-        /// to clean up dirty code below --kmcguire
         y = code[x+1];
         jvm_StackPop(&stack, &result);
         jvm_CreatePrimArray(jvm, bundle, y, result.data, &_jobject);
@@ -1071,7 +1078,13 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
           a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
         }
-        //
+
+        error = jvm_GetField(_jobject, a->string, &result);
+        if (error != JVM_SUCCESS)
+          break;
+        
+        jvm_StackPush(&stack, result.data, result.flags);
+        
         
         debugf("fieldCnt %u\n", _jobject->fieldCnt);
         error = JVM_ERROR_MISSINGFIELD;;
@@ -1406,7 +1419,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          jvm_ScrubStack(&stack);
          debugf("##out1\n");
          jvm_ScrubLocals(locals, method->code->maxLocals);
-         debugf("##out2\n");
+         debugf("##out2 data:%x flags:%x\n", stack.data, stack.flags);
          jvm_StackFree(&stack);
          jvm_free(locals);
          return JVM_SUCCESS;
