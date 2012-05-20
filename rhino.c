@@ -375,7 +375,7 @@ int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
     u8 = (JVMConstPoolUtf8*)c->pool[ci->nameIndex - 1];
 
     if (jvm_strcmp((const char*)u8->string, className) == 0)
-      return 1;
+      return JVM_SUCCESS;
       /// if equals exit with true
       
     /// no super class exit with false
@@ -390,7 +390,7 @@ int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className) {
       break;
   }
 
-  return 0;
+  return JVM_ERROR_BADCAST;
 }
 
 int jvm_CountObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
@@ -582,6 +582,52 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
   }
 
   return 1;
+}
+
+int jvm_PutField(JVMBundle *bundle, JVMObject *jobject, uint8 *fieldName, uintptr data, uint32 flags) {
+  int           w;
+  int           error;
+
+  debugf("looking %x %u\n", jobject, jobject->fieldCnt);
+  for (w = 0; w < jobject->fieldCnt; ++w) {
+    debugf("checking %s with %s\n", jobject->_fields[w].name, fieldName);
+    if (jvm_strcmp(jobject->_fields[w].name, fieldName) == 0) {
+      // check that what we are placing here is a instance of the class psecified
+      if (jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF) {
+        if (data) {
+          if (jvm_IsInstanceOf(bundle, (JVMObject*)data, jvm_GetClassNameFromClass(jobject->_fields[w].jclass))) {
+            return JVM_ERROR_BADCAST;
+          }
+        }
+      }
+      // end of check instance type8
+      jobject->_fields[w].value = data;
+      jobject->_fields[w].aflags = flags;
+      return JVM_SUCCESS;
+    }
+    // end of match field name
+  }
+  debugf("no find field\n");
+  // end of main loop
+  return JVM_ERROR_MISSINGFIELD;
+}
+
+int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result) {
+  int           w;
+  int           error;
+
+  error = JVM_ERROR_MISSINGFIELD;
+  for (w = 0; w < jobject->fieldCnt; ++w) {
+    if (jvm_strcmp(jobject->_fields[w].name, fieldName) == 0) {
+      result->data = jobject->_fields[w].value;
+      result->flags = jobject->_fields[w].aflags;
+      error = JVM_SUCCESS;
+    }
+  }
+
+  result->data = 0;
+  result->flags = 0;
+  return error;
 }
 
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out) {

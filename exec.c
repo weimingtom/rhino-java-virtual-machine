@@ -2,9 +2,12 @@
 #include "exec.h"
 
 void jvm_LocalPut(JVMLocal *locals, uint32 ndx, uintptr data, uint32 flags) {
-  if (locals[ndx].flags & JVM_STACK_ISOBJECTREF)
-    if (locals[ndx].data)
+  if (locals[ndx].flags & JVM_STACK_ISOBJECTREF) {
+    debugf("gggg locals[%u]:%x\n", ndx, locals[ndx].data);
+    if (locals[ndx].data) {
       ((JVMObject*)locals[ndx].data)->stackCnt--;
+    }
+  }
   locals[ndx].data = data;
   locals[ndx].flags = flags;
   if (flags & JVM_STACK_ISOBJECTREF)
@@ -158,6 +161,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
   /// copy provided arguments into locals
   debugf("----->maxLocals:%x\n", method->code->maxLocals);
+  // more max locals can be specified than actual
+  // number of locals passed in
+  for (x = 0; x < method->code->maxLocals; ++x) {
+    locals[x].data = 0;
+    locals[x].flags = 0;
+  }
   debugf("localCnt:%u\n", localCnt);
   for (x = 0; x < localCnt; ++x) {
     locals[x].data = _locals[x].data;
@@ -291,7 +300,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // so mclass must exist as this class or a super of it
         _jobject = (JVMObject*)result.data;
         /// is objref the type described by Y (or can be)
-        if (!jvm_IsInstanceOf(bundle, _jobject, mclass))
+        if (jvm_IsInstanceOf(bundle, _jobject, mclass))
         {
           debugf("bad cast to %s\n", mclass);
           debugf("i am here\n");
@@ -583,7 +592,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// astore_2
       case 0x4d:
         jvm_StackPop(&stack, &result);
+        debugf("eee %u %x data:%x flags:%x\n", method->code->maxLocals, locals, result.data, result.flags);
         jvm_LocalPut(locals, 2, result.data, result.flags);
+        debugf("fff\n");
         x += 1;
         break;
       /// astore_3
@@ -889,7 +900,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         if (__jobject != 0) {
           // check that the type we are trying to store
           // is the same or derived from
-          if (!jvm_IsInstanceOf(bundle, __jobject, jvm_GetClassNameFromClass(_jobject->class))) {
+          if (jvm_IsInstanceOf(bundle, __jobject, jvm_GetClassNameFromClass(_jobject->class))) {
             error = JVM_ERROR_WASNOTINSTANCEOF;
             break;
           }
@@ -1099,7 +1110,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             if (jclass->sfields[w].flags & JVM_STACK_ISOBJECTREF)
             {
               // see if it is instance of class type specified
-              if (!jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(jclass->sfields[w].jclass))) {
+              if (jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(jclass->sfields[w].jclass))) {
                   debugf("not instance of..\n");
                   error = JVM_ERROR_BADCAST;
                   break;
@@ -1160,49 +1171,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("##>%s\n", a->string);
           //jvm_exit(-4);
         }
-        //tmp = a->string;
-        // look through obj's fields until we find
-        // a matching entry then check the types
-        for (w = 0; w < _jobject->fieldCnt; ++w) {
-          if (jvm_strcmp(_jobject->_fields[w].name, a->string) == 0) {
-            // matched name now check type
-            if (_jobject->_fields[w].flags & JVM_STACK_ISOBJECTREF)
-            {
-              debugf("ttt %s\n", jvm_GetClassNameFromClass(_jobject->_fields[w].jclass));
-              // if not null then we have to check type
-              if (result.data) {
-                // see if it is instance of class type specified
-                if (!jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(_jobject->_fields[w].jclass))) {
-                    debugf("not instance of..\n");
-                    error = JVM_ERROR_BADCAST;
-                    break;
-                }
-              }
-            } else {
-              if (_jobject->_fields[w].flags != result.flags) {
-                debugf("** %u / %u\n", _jobject->_fields[w].flags, result.flags);
-                error = JVM_ERROR_FIELDTYPEDIFFERS;
-                break;
-              }
-            }
-            debugf("ok:%i\n", error);
-            if (error < 0) {
-              debugf("error\n");
-              break;
-            }
-              
-            // actualy store it now
-            _jobject->_fields[w].value = (uintptr)result.data;
-            _jobject->_fields[w].aflags = result.flags;
-            break;
-          }
-          
-        }
-        
-        // if error go handle it
-        if (error < 0)
-          break;
 
+        error = jvm_PutField(bundle, (JVMObject*)result2.data, a->string, result.data, result.flags);
+        debugf("done\n");
+        if (error != JVM_SUCCESS)
+          break;
+        
         x += 3;
         break;
       /// tableswitch
@@ -1485,7 +1459,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
             debugf("catchType:%s\n", a->string);
             /// is _jobject an instance of exception handler class a->string?
-            if (jvm_IsInstanceOf(bundle, _jobject, a->string)) {
+            if (!jvm_IsInstanceOf(bundle, _jobject, a->string)) {
               /// yes, then jump to exception handler
               jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
               x = method->code->eTable[y].pcHandler;

@@ -296,4 +296,6 @@ uint8* jvm_ReadWholeFile(const char *path, uint32 *size);
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass);
 uint8* jvm_GetClassNameFromClass(JVMClass *c);
 int jvm_collect(JVM *jvm);
+int jvm_PutField(JVMBundle *bundle, JVMObject *jobject, uint8 *fieldName, uintptr data, uint32 flags);
+int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result);
 #endif
