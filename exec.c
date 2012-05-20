@@ -1385,8 +1385,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          debugf("##out\n");
          
          if (eresult < 0) {
-           error = eresult;
-           
+           // already instance of exception object
+           jvm_StackPush(&stack, result.data, result.flags);
+           error = JVM_ERROR_EXCEPTION;
            debugf("propagating error down the stack frames..\n");
            break;
          }
@@ -1457,7 +1458,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
       }
+      debugf("aaa\n");
       jvm_ScrubStack(&stack);
+      debugf("aaa\n");
       jvm_ScrubLocals(locals, method->code->maxLocals);
       /// are we between an exception handler?
       debugf("checking if inside exception handler..\n");
@@ -1489,7 +1492,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackFree(&stack);
         jvm_free(locals);
         debugf("A run-time exception occured as type %i\n", error);
-        return error;
+        _result->data = _jobject;
+        _result->flags = JVM_STACK_ISOBJECTREF;
+        // exception object already created
+        return JVM_ERROR_EXCEPTION;
       }
     }
     /// END OF ERROR MANAGEMENT

@@ -32,6 +32,7 @@ struct _JVMMemoryStream;
 #define JVM_ERROR_WASNOTINSTANCEOF      -13
 #define JVM_ERROR_WASPRIMITIVEARRAY     -14
 #define JVM_ERROR_FIELDTYPEDIFFERS      -15
+#define JVM_ERROR_MISSINGFIELD          -16
 
 /*
   I have yet to use the other flags. Currently,

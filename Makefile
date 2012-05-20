@@ -1,5 +1,7 @@
-default: makejavalang makecore maketest
+default:
 	gcc -Os *.c -o rhino
+
+java: makejavalang makecore maketest
 
 maketest: ./Test.java
 	javac ./Test.java

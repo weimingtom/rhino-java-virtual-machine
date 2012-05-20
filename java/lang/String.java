@@ -21,7 +21,7 @@ public class String {
   }
 
   public static int test(int a, int b) {
-    return a;
+    return b;
   }
 
   public static String format(String sfmt, Object... args) {
