@@ -3,6 +3,13 @@
 #include "port.h"
 #include "std.h"
 
+#define DEBUG_INFO
+#ifdef DEBUG_INFO
+#define debugf jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
+#else
+#define debugf //
+#endif
+
 struct _JVMMemoryStream;
 
 #define TAG_METHODREF                   10
@@ -71,8 +78,6 @@ struct _JVMMemoryStream;
 #define JVM_OBJTYPE_PARRAY      1
 #define JVM_OBJTYPE_OBJECT      2
 #define JVM_OBJTYPE_OARRAY      3
-
-#define debugf jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
 
 typedef struct _JVMStack {
   uintptr               *data;
