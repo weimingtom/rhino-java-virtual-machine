@@ -158,6 +158,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
   /// copy provided arguments into locals
   debugf("----->maxLocals:%x\n", method->code->maxLocals);
+  debugf("localCnt:%u\n", localCnt);
   for (x = 0; x < localCnt; ++x) {
     locals[x].data = _locals[x].data;
     locals[x].flags = _locals[x].flags;
@@ -195,13 +196,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             // get string length in 'w'
             for (w = 0; a->string[w] != 0; ++w);
             // create java/lang/String
-            debugf("***********************************\n");
             _jobject = 0;
             if(jvm_CreateObject(jvm, bundle, "java/lang/String", &_jobject)) {
-              debugf("stopped\n");
-              exit(-4);
+              error = JVM_ERROR_CLASSNOTFOUND;
+              break;
             }
-            exit(-8);
             // create byte array to hold string
             /// todo: ref our byte[] to String
             /// todo: also do for putfield and getfield opcodes
@@ -1022,14 +1021,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
 
         //
-        error = 1;
+        error = JVM_ERROR_MISSINGFIELD;
         for (w = 0; w < jclass->sfieldCnt; ++w) {
           debugf("looking for field %s have %s\n", a->string, jclass->sfields[w].name);
           if (jvm_strcmp(jclass->sfields[w].name, a->string) == 0) {
             // push onto the stack
             debugf("jclass->sfields[w].value:%li\n", jclass->sfields[w].value);
             jvm_StackPush(&stack, jclass->sfields[w].value, jclass->sfields[w].aflags);
-            error = 0;
+            error = JVM_SUCCESS;
             break;
           }
         }
@@ -1064,19 +1063,18 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         //
         
         debugf("fieldCnt %u\n", _jobject->fieldCnt);
-        error = 1;
+        error = JVM_ERROR_MISSINGFIELD;;
         for (w = 0; w < _jobject->fieldCnt; ++w) {
           debugf("##>%x looking for field %s have %s\n", _jobject, a->string, _jobject->_fields[w].name);
           if (jvm_strcmp(_jobject->_fields[w].name, a->string) == 0) {
             // push onto the stack
             jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].aflags);
-            error = 0;
+            error = JVM_SUCCESS;
             break;
           }
         }
         if (error > 0) {
           debugf("##>field not found\n");
-          jvm_exit(-7);
           break;
         }
         x += 3;
@@ -1188,7 +1186,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               }
             }
             debugf("ok:%i\n", error);
-            //jvm_exit(-4);
             if (error < 0) {
               debugf("error\n");
               break;
@@ -1300,13 +1297,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
          // a->string is the method of the class
          _jclass = jvm_FindClassInBundle(bundle, mclass);
-         debugf("find class in bundle %s:%s\n", mclass, jvm_GetClassNameFromClass(_jclass));
-         
+         debugf("here %x\n", _jclass);
          if (!_jclass) {
            debugf("for method call can not find class [%s]\n", mclass);
            error = JVM_ERROR_CLASSNOTFOUND;
            break;
          }
+
+         debugf("find class in bundle %s:%s\n", mclass, jvm_GetClassNameFromClass(_jclass));
 
          mmethod = a->string;
 
@@ -1363,7 +1361,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          if (opcode != 0xb8) {
           _locals[0].data = result.data;
           _locals[0].flags = result.flags;
-
+          // only parameters counted, so if this is
+          // not a static call we need to include
+          // our object(self) also
+          argcnt += 1;
           debugf("objref->stackCnt:%u\n", ((JVMObject*)_locals[0].data)->stackCnt);
           debugf("calling method with self.data:%x self.flags:%u\n", _locals[0].data, _locals[0].flags);
          }
@@ -1373,11 +1374,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          if ((_jclass->flags & JVM_CLASS_NATIVE) && (_method->accessFlags & JVM_ACC_NATIVE)) {
            debugf("-----native-call----\n");
            // get native implementation procedure index
-           eresult = _jclass->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
+           eresult = _jclass->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
            //eresult = jvm->nprocs[w](jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result); 
          } else {
            debugf("-----java-call----\n");
-           eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result);
+           eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
          }
          jvm_free(_locals);
 
@@ -1385,6 +1386,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          
          if (eresult < 0) {
            error = eresult;
+           
            debugf("propagating error down the stack frames..\n");
            break;
          }
@@ -1437,27 +1439,24 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     /// ---------------------------------
     /// END OF SWITCH STATEMENT
     /// ---------------------------------
-    
     jvm_DebugStack(&stack);
     debugf("error:%i\n", error);
     /// we encountered an error condition which could be
     /// handled by an exception so we setup for it here
     if (error < 0) {
-      
       debugf("got exception -- scrubing locals and stack\n");
       /// these are run-time exceptions
       if (error != JVM_ERROR_EXCEPTION) {
         _error = jvm_CreateObject(jvm, bundle, "java/lang/Exception", &_jobject);
-        _jobject->stackCnt = 0;
         if (_error < 0) {
-          debugf("could not create object type %s!\n");
+          debugf("Could not find java/lang/Exception!\n");
           jvm_exit(_error);
         }
+        _jobject->stackCnt = 0;
       } else {
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
       }
-
       jvm_ScrubStack(&stack);
       jvm_ScrubLocals(locals, method->code->maxLocals);
       /// are we between an exception handler?
@@ -1475,13 +1474,17 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
               x = method->code->eTable[y].pcHandler;
               debugf("jumping to pcHandler:%i\n", x);
-              error = 0;
+              error = JVM_SUCCESS;
               break;
             }
           }
       }
-      /// if we jumped to an exception handler then we
-      /// need to try to continue
+
+      //debugf("exception missed handlers\n");
+      //exit(-9);
+      
+      // if no exceptions handle found then we have
+      // exit and pass it down the call stack
       if (error < 0) {
         jvm_StackFree(&stack);
         jvm_free(locals);
