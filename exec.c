@@ -1383,16 +1383,20 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          jvm_free(_locals);
 
          debugf("##out\n");
-         
+
+         // the called method had an exception thrown and it was unable
+         // to handle it so now we need to setup to see if we can handle
+         // it, this will cause us to enter into the exception control
+         // code block a ways below
          if (eresult < 0) {
-           // already instance of exception object
            jvm_StackPush(&stack, result.data, result.flags);
            error = JVM_ERROR_EXCEPTION;
            debugf("propagating error down the stack frames..\n");
            break;
          }
 
-         /// need to know if it was a void return or other
+         // if the function return type if void then we
+         // do not place anything onto the stack
          if (!jvm_IsMethodReturnTypeVoid(mtype)) {
           /// push result onto stack
           debugf("return type not void!\n");
@@ -1400,7 +1404,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          } else {
            debugf("return type void..\n");
          }
-
+         // continue executing..
          x += 3;
          break;
       /// areturn: return reference from a method
@@ -1422,7 +1426,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // java compiler expects it to be now we need to scrub
          // it's fields to sync object stack counts
          debugf("scrubbing fields, stack, and locals..\n");
-         /// should i be scrubbing fields??? i dont think so..
+         /// should i be scrubbing fields??? i dont think so..? not sure
          //if (locals[0].flags & JVM_STACK_ISOBJECTREF)
          // jvm_ScrubObjectFields(locals[0].data);
          jvm_ScrubStack(&stack);
@@ -1442,27 +1446,36 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     /// ---------------------------------
     jvm_DebugStack(&stack);
     debugf("error:%i\n", error);
-    /// we encountered an error condition which could be
-    /// handled by an exception so we setup for it here
+    // either a exception object was thrown (JVM_ERROR_EXCEPTION) from
+    // the athrow opcode or a run-time exception occured and the type
+    // of it is stored in error
     if (error < 0) {
       debugf("got exception -- scrubing locals and stack\n");
       /// these are run-time exceptions
       if (error != JVM_ERROR_EXCEPTION) {
         _error = jvm_CreateObject(jvm, bundle, "java/lang/Exception", &_jobject);
+        // this block lets me create a specific exception from the error code
+        // and it keeps me from having to implement complex blocks in each
+        // opcode that needs to throw a runtime exception, once we create
+        // the exception we treat it like a regular thrown exception and it
+        // can propagate down the stack
         if (_error < 0) {
           debugf("Could not find java/lang/Exception!\n");
           jvm_exit(_error);
         }
         _jobject->stackCnt = 0;
       } else {
+        // this is where a regular exception is caught, normally
+        // from the athrow opcode, but if one is passed down
+        // it will also land here also
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
       }
-      debugf("aaa\n");
+      // make sure the stack is scrubed clean and the locals?
       jvm_ScrubStack(&stack);
-      debugf("aaa\n");
       jvm_ScrubLocals(locals, method->code->maxLocals);
-      /// are we between an exception handler?
+      // now we need to check if there is an exception handler
+      // which can take control or if not we will pass it down
       debugf("checking if inside exception handler..\n");
       for (y = 0; y < method->code->eTableCount; ++y) {
         debugf("  check x:%i pcStart:%i pcEnd:%i\n", x, method->code->eTable[y].pcStart, method->code->eTable[y].pcEnd);
@@ -1482,28 +1495,26 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             }
           }
       }
-
-      //debugf("exception missed handlers\n");
-      //exit(-9);
-      
-      // if no exceptions handle found then we have
-      // exit and pass it down the call stack
+      // if error is still set then we need to pass it down because the
+      // block above was unable to find a handler which matched
       if (error < 0) {
+        // free the stack and locals array that we created when
+        // we entered into this procedure, then set exceptions
+        // as a return value and exit out the code waiting
+        // will enter right back into this exception handling
+        // block until the program terminates or it is caught
         jvm_StackFree(&stack);
         jvm_free(locals);
-        debugf("A run-time exception occured as type %i\n", error);
-        _result->data = _jobject;
+        _result->data = (uint64)_jobject;
         _result->flags = JVM_STACK_ISOBJECTREF;
-        // exception object already created
+        debugf("Passing exception down the stack..\n");
         return JVM_ERROR_EXCEPTION;
       }
     }
     /// END OF ERROR MANAGEMENT
    }
   /// END OF LOOP
-  // We should technically never make it here. Since
-  // a return opcode should bring us out. So let us
-  // make it an error to arrive here.
+  // we never should make it here
   jvm_printf("[error] reached end of loop!?\n");
   jvm_exit(-55);
   return JVM_SUCCESS;
