@@ -286,6 +286,8 @@ typedef struct _JVM {
   JVMObject             *objects;
   // last garbage collector mark
   uint16                cmark;
+  // global lock to object chain
+  uint8                 mutex;
 } JVM;
 
 // java stores all integers in big-endian

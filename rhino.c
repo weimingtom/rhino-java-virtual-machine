@@ -859,9 +859,10 @@ int jvm_collect(JVM *jvm) {
       ca->object = co;
       ca->next = ra;
       ra = ca;
-      debugf("obj\n");
+      debugf("obj %x %u\n", co, co->stackCnt);
     }
   }
+  //exit(-4);
 
   while (ra != 0) {
     for (ca = ra; ca != 0; ca = ca->next) {
@@ -880,7 +881,11 @@ int jvm_collect(JVM *jvm) {
           for (x = 0; x < ca->object->fieldCnt; ++x) {
             // add collect to rb
             debugf("rr x:%u\n", x);
-            // some fields can be primitive
+            // null, nothing to do, continue onward
+            if (!cof[x].value)
+              continue;
+            // some fields may be primitive, we are only
+            // interested in object
             if (cof[x].aflags & JVM_STACK_ISOBJECTREF) {
               if (((JVMObject*)cof[x].value)->cmark == cmark)
                 continue;
@@ -920,13 +925,13 @@ int jvm_collect(JVM *jvm) {
     rb = 0;
   }
 
-  for (co = jvm->objects; co != 0; co = _co->next) {
+  for (co = jvm->objects; co != 0; co = _co) {
     _co = co->next;
     if ((co->stackCnt == 0) && (co->cmark != cmark)) {
-      debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u\n", co->type, co, co->cmark, co->stackCnt);
+      debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
       jvm_free(co);
     } else {
-      debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u\n", co->type, co, co->cmark, co->stackCnt);
+      debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
     }
   }
   return 1;
@@ -995,6 +1000,7 @@ int main(int argc, char *argv[])
     jvm_exit(-1);
   }
 
+  jobject->stackCnt = 22;
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
   result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
@@ -1029,13 +1035,13 @@ int main(int argc, char *argv[])
       debugf("    -----\n");
       result = jvm_GetField((JVMObject*)_result.data, "next", &_result);
     }
+    debugf("calling collect.. %x\n", jobject);
     jvm_collect(&jvm);
     return -1;
   }
   
   jvm_printf("done! result.data:%i result.flags:%u\n", jvm_result.data, jvm_result.flags);
 
-  debugf("calling collect\n");
   jvm_collect(&jvm);
   
   return 1;
