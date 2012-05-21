@@ -635,6 +635,9 @@ int jvm_GetString(JVMObject *in, uint8 **out) {
   JVMLocal      result;
   int           error;
   uint32        flags;
+
+  if (!in)
+    return JVM_ERROR_INVALIDARG;
   
   error = jvm_GetField(in, "data", &result);
   debugf("result.data:%x result.flags:%x\n", result.data, result.flags);
@@ -758,6 +761,10 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
 
   debugf("native:%s:%x\n", method8, c);
   switch (c) {
+    // Exit
+    case 0x19a:
+      exit(-1);
+      break;
     // PrintString
     case 0x484:
       sobject = (JVMObject*)locals[0].data;
@@ -974,7 +981,7 @@ int main(int argc, char *argv[])
     debugf("could not create object?\n");
     jvm_exit(-1);
   }
-  
+
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
   result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
@@ -983,21 +990,26 @@ int main(int argc, char *argv[])
     debugf("exception code:%i\n", result);
     debugf("jvm_result.data:%x jvm_result.flags:%x\n", jvm_result.data, jvm_result.flags);
     // walk the stack
-    result = jvm_GetField((JVMObject*)jvm_result.data, "first", &_result);
     errorf("-------- UNCAUGHT EXCEPTION ---------\n");
     errorf("  %s\n", jvm_GetClassNameFromClass(((JVMObject*)jvm_result.data)->class));
+    jvm_GetField((JVMObject*)jvm_result.data, "msg", &_result);
+    debugf("here %x\n", _result.data);
+    jvm_GetString((JVMObject*)_result.data, &utf8);
+    errorf(" msg:%s\n", utf8);
+    
+    result = jvm_GetField((JVMObject*)jvm_result.data, "first", &_result);
     while (_result.data != 0) {
       result = jvm_GetField((JVMObject*)_result.data, "methodName", &jvm_result);
       jvm_GetString((JVMObject*)jvm_result.data, &utf8);
-      errorf("    methodName:%s", utf8);
+      errorf("    method:%s", utf8);
       result = jvm_GetField((JVMObject*)_result.data, "className", &jvm_result);
       jvm_GetString((JVMObject*)jvm_result.data, &utf8);
-      errorf(" className:%s", utf8);
+      errorf(" class:%s", utf8);
       result = jvm_GetField((JVMObject*)_result.data, "methodType", &jvm_result);
       jvm_GetString((JVMObject*)jvm_result.data, &utf8);
-      errorf(" methodType:%s", utf8);
+      errorf(" type:%s", utf8);
       result = jvm_GetField((JVMObject*)_result.data, "opcodeIndex", &jvm_result);
-      errorf(" opcodeIndex:%u\n", jvm_result.data);
+      errorf(" opcode:%u\n", jvm_result.data);
       //result = jvm_GetField((JVMObject*)_result.data, "sourceLine", &jvm_result);
       //debugf("sourceLine:%u\n", jvm_result.data);
       // get next item, if any

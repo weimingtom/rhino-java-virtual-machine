@@ -395,8 +395,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// athrow
       case 0xbf:
         error = JVM_ERROR_EXCEPTION;
-        // testing (remove me please)
-        error = JVM_ERROR_BADCAST;
         break;
       /// dup: duplicate item on top of stack
       case 0x59:
@@ -1074,10 +1072,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           a = (JVMConstPoolUtf8*)_jclass->pool[y - 1];
           debugf("fieldname:%s\n", a->string);
         } else {
-          f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
-          debugf("mmm:%u\n", _jclass->pool[y - 1]->type);
-          d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
-          a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
+          if (_jclass->pool[y - 1]->type == 9) {
+            f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
+            d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
+            a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
+          } else {
+            debugf("not implemented for tag-type %u\n", _jclass->pool[y - 1]->type);
+            exit(-4);
+          }
         }
 
         error = jvm_GetField(_jobject, a->string, &result);

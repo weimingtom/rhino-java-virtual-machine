@@ -3,7 +3,7 @@
 #include "port.h"
 #include "std.h"
 
-//#define DEBUG_INFO
+#define DEBUG_INFO
 #ifdef DEBUG_INFO
 #define debugf jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
 #else
