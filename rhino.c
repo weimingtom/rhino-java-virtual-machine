@@ -672,6 +672,14 @@ int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, J
   return JVM_SUCCESS;
 }
 
+void jvm_MutexAquire(uint8 *mutex) {
+  while (__sync_lock_test_and_set(mutex, 1));
+}
+
+void jvm_MutexRelease(uint8 *mutex) {
+  *mutex = 0;
+}
+
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out) {
   JVMClass                      *jclass;
   JVMObject                     *jobject;
@@ -697,8 +705,10 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   jobject->stackCnt = 0;
   jobject->type = JVM_OBJTYPE_OBJECT;
   // link us into global object chain
+  jvm_MutexAquire(&jvm->mutex);
   jobject->next = jvm->objects;
   jvm->objects = jobject;
+  jvm_MutexRelease(&jvm->mutex);
   // go through and create fields
   jvm_MakeObjectFields(jvm, bundle, jobject);
   // execute init method
@@ -942,6 +952,7 @@ int main(int argc, char *argv[])
   
   jvm.objects = 0;
   jvm.cmark = 0;
+  jvm.mutex = 0;
   jbundle.first = 0;
   
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
