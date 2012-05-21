@@ -19,12 +19,18 @@ int jvm_CreateObjectArray(JVM *jvm, JVMBundle *bundle, uint8 *className, uint32 
   JVMObject     *_jobject;
 
   _jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
+  if (!_jobject)
+    return JVM_ERROR_OUTOFMEMORY;
+  jvm_MutexAquire(&jvm->mutex);
   _jobject->next = jvm->objects;
-  _jobject->type = JVM_OBJTYPE_OARRAY;
   jvm->objects = _jobject;
+  jvm_MutexRelease(&jvm->mutex);
+  _jobject->type = JVM_OBJTYPE_OARRAY;
   _jobject->class = jvm_FindClassInBundle(bundle, className);
   _jobject->stackCnt = 0;
   _jobject->fields = (uint64*)jvm_malloc(sizeof(JVMObject*) * size);
+  if (!_jobject->fields)
+    return JVM_ERROR_OUTOFMEMORY;
   _jobject->fieldCnt = size;
 
   *_object = _jobject;
@@ -37,9 +43,13 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
 
   // JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF
   _jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
+  if (!_jobject)
+    return JVM_ERROR_OUTOFMEMORY;
+  jvm_MutexAquire(&jvm->mutex);
   _jobject->next = jvm->objects;
-  _jobject->type = JVM_OBJTYPE_PARRAY;
   jvm->objects = _jobject;
+  jvm_MutexRelease(&jvm->mutex);
+  _jobject->type = JVM_OBJTYPE_PARRAY;
   _jobject->class = jvm_FindClassInBundle(bundle, "java/lang/Array");
   if (!_jobject->class) {
     debugf("whoa.. newarray but java/lang/Array not in bundle!\n");
@@ -78,6 +88,10 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   } else {
     _jobject->fields = (uint64*)buf;
   }
+
+  if (!_jobject->fields)
+    return JVM_ERROR_OUTOFMEMORY;
+  
   _jobject->fieldCnt = (uintptr)cnt;
   *jobject = _jobject;
   return JVM_SUCCESS;
@@ -165,6 +179,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   /// -----------------------------------------------------
   /// 255 should be maximum local addressable
   locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
+  if (!locals)
+    return JVM_ERROR_OUTOFMEMORY;
   /// copy provided arguments into locals
   debugf("----->maxLocals:%x\n", method->code->maxLocals);
   // more max locals can be specified than actual
@@ -958,22 +974,33 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// anewarray: create array of references by type specified
       case 0xbd:
         y = code[x+1] << 8 | code[x+2];
-        _jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
-        _jobject->next = jvm->objects;
-        _jobject->type = JVM_OBJTYPE_OARRAY;
-        jvm->objects = _jobject;
-        /// allows us to know if this is a ref array for a type
-        /// or if it is a primitive array=0 while obj array!=0
+        //_jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
+        //if (!_jobject) {
+        //  error = JVM_ERROR_OUTOFMEMORY;
+        //  break;
+        //}
+        //_jobject->next = jvm->objects;
+        //_jobject->type = JVM_OBJTYPE_OARRAY;
+        //jvm->objects = _jobject;
         c = (JVMConstPoolClassInfo*)jclass->pool[y - 1];
         a = (JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1];
-        _jobject->class = jvm_FindClassInBundle(bundle, a->string);
-        _jobject->stackCnt = 0;
+        //_jobject->class = jvm_FindClassInBundle(bundle, a->string);
+        //_jobject->stackCnt = 0;
         jvm_StackPop(&stack, &result);
         argcnt = result.data;
-        _jobject->fields = (uint64*)jvm_malloc(sizeof(JVMObject*) * argcnt);
-        _jobject->fieldCnt = argcnt;
-        jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        //_jobject->fields = (uint64*)jvm_malloc(sizeof(JVMObject*) * argcnt);
+        //_jobject->fieldCnt = argcnt;
+
+        _error = jvm_CreateObjectArray(jvm, bundle, a->string, argcnt, &_jobject);
         debugf("##> anewarray %x\n", _jobject);
+        
+        if (_error) {
+          error = _error;
+          break;
+        }
+
+        jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        
         x += 3;
         break;
       /// newarray
@@ -1329,7 +1356,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
          /// pop locals from stack into local variable array
          _locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * (argcnt + 2));
-
+         if (!_locals) {
+           error = JVM_ERROR_OUTOFMEMORY;
+           break;
+         }
+         
          w = 1;
          if (opcode == 0xb8)
            w = 0;
@@ -1481,6 +1512,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           // link to existing, if any, exception items
           _error = jvm_PutField(bundle, __jobject, "next", result.data, result.flags);
           if (_error) break;
+          // fill out exception item to create stack trace
           _error = jvm_PutField(bundle, _jobject, "first", (uint64)__jobject, JVM_STACK_ISOBJECTREF);
           if (_error) break;
           _error = jvm_CreateString(jvm, bundle, (uint8*)methodName, jvm_strlen(methodName), &___jobject);
