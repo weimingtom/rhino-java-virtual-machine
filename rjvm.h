@@ -19,7 +19,7 @@
 
 //#define MALLOC_INFO
 #ifdef MALLOC_INFO
-#define minfof jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
+#define minfof jvm_printf
 #else
 #define minfof //
 #endif

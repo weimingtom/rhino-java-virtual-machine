@@ -833,7 +833,7 @@ int jvm_collect(JVM *jvm) {
   uint16                cmark;  
   JVMCollect            *ra, *ca, *_ca;
   JVMCollect            *rb, *cb;
-  JVMObject             *co;
+  JVMObject             *co, *_co;
   JVMObjectField        *cof;
   JVMObject             **caf;
   int                   x;
@@ -910,9 +910,11 @@ int jvm_collect(JVM *jvm) {
     rb = 0;
   }
 
-  for (co = jvm->objects; co != 0; co = co->next) {
+  for (co = jvm->objects; co != 0; co = _co->next) {
+    _co = co->next;
     if ((co->stackCnt == 0) && (co->cmark != cmark)) {
       debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u\n", co->type, co, co->cmark, co->stackCnt);
+      jvm_free(co);
     } else {
       debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u\n", co->type, co, co->cmark, co->stackCnt);
     }
@@ -1016,18 +1018,13 @@ int main(int argc, char *argv[])
       debugf("    -----\n");
       result = jvm_GetField((JVMObject*)_result.data, "next", &_result);
     }
+    jvm_collect(&jvm);
     return -1;
   }
   
   jvm_printf("done! result.data:%i result.flags:%u\n", jvm_result.data, jvm_result.flags);
 
-  jvm_printf("---dumping objects---\n");
-  for (jobject = jvm.objects; jobject != 0; jobject = jobject->next) {
-    jvm_printf("jobject:%x\tstackCnt:%i\tclassName:%s\n", jobject, jobject->stackCnt, jvm_GetClassNameFromClass(jobject->class));
-  }
-
-  jvm_PrintMemoryDiag();
-
+  debugf("calling collect\n");
   jvm_collect(&jvm);
   
   return 1;
