@@ -1,7 +1,9 @@
 class Test {
+  public int    ww;
   public int c(int x) throws Exception {
-    //throw new Exception();
-    return 66;
+    Exception           e;
+    e = new Exception("hello exception world");
+    throw e;
   }
 
   public int b(int x) throws Exception {
@@ -9,20 +11,16 @@ class Test {
   }
 
   public int a(int x) throws Exception {
-    try {
-      return b(x);
-    } catch (Exception e) {
-      return 55;
-    }
+    return b(x);
   }
 
   public int main() throws Exception {
     //String[]            sa;
-    //String              s;
+    String                s;
     //sa = Core.Core.EnumClasses();
     //s = sa[0].concat(sa[1]);
-    //Core.Core.PrintString(String.format("a%sb%%c", "hello world", 5));
-
+    //Core.Core.PrintString(String.format("a%sb%ic", "hello world", 5));
+    
     //return toot("hello world", sa[0], sa[1]);
     return a(5);
   }

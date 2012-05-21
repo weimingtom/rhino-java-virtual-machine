@@ -11,6 +11,10 @@ void jvm_free(void *p) {
   free(p);
 }
 
+int jvm_strlen(const char *a) {
+  return strlen(a);
+}
+
 void *jvm__malloc(uintptr size, const char *f, uint32 line) {
   void          *p;
   p = malloc(size);

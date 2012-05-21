@@ -10,5 +10,6 @@ void *jvm__malloc(uintptr size, const char *function, uint32 line);
 #define jvm_printf printf
 void jvm_exit(int result);
 int jvm_strcmp(const char *a, const char *b);
+int jvm_strlen(const char *a);
 void jvm_PrintMemoryDiag();
 #endif

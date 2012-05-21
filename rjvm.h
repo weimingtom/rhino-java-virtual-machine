@@ -40,6 +40,7 @@ struct _JVMMemoryStream;
 #define JVM_ERROR_WASPRIMITIVEARRAY     -14
 #define JVM_ERROR_FIELDTYPEDIFFERS      -15
 #define JVM_ERROR_MISSINGFIELD          -16
+#define JVM_ERROR_INVALIDARG            -17
 
 /*
   I have yet to use the other flags. Currently,
@@ -298,4 +299,5 @@ uint8* jvm_GetClassNameFromClass(JVMClass *c);
 int jvm_collect(JVM *jvm);
 int jvm_PutField(JVMBundle *bundle, JVMObject *jobject, uint8 *fieldName, uintptr data, uint32 flags);
 int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result);
+int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, JVMObject **out);
 #endif

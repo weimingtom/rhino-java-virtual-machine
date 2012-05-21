@@ -349,6 +349,7 @@ void jvm_ScrubStack(JVMStack *stack) {
   while (jvm_StackMore(stack)) {
     jvm_StackPop(stack, &result);
   }
+  debugf("done\n");
 }
 
 /// helper function
@@ -614,20 +615,58 @@ int jvm_PutField(JVMBundle *bundle, JVMObject *jobject, uint8 *fieldName, uintpt
 
 int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result) {
   int           w;
-  int           error;
 
-  error = JVM_ERROR_MISSINGFIELD;
   for (w = 0; w < jobject->fieldCnt; ++w) {
+    debugf("%s==%s\n", fieldName, jobject->_fields[w].name);
     if (jvm_strcmp(jobject->_fields[w].name, fieldName) == 0) {
       result->data = jobject->_fields[w].value;
       result->flags = jobject->_fields[w].aflags;
-      error = JVM_SUCCESS;
+      return JVM_SUCCESS;
     }
   }
 
   result->data = 0;
   result->flags = 0;
-  return error;
+  return JVM_ERROR_MISSINGFIELD;
+}
+
+// helper function
+int jvm_GetString(JVMObject *in, uint8 **out) {
+  JVMLocal      result;
+  int           error;
+  uint32        flags;
+  
+  error = jvm_GetField(in, "data", &result);
+  debugf("result.data:%x result.flags:%x\n", result.data, result.flags);
+  if (error)
+    return error;
+  debugf("a1\n");
+  flags = JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF | JVM_STACK_ISBYTE;
+  if (result.flags & flags == flags) {
+    debugf("a2\n");
+    *out = (uint8*)(((JVMObject*)result.data)->_fields);
+    return;
+  }
+  debugf("a3\n");
+  return JVM_ERROR_INVALIDARG;
+}
+
+int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, JVMObject **out) {
+  JVMObject                     *sobject;
+  JVMObject                     *pobject;
+  int                           error;
+  
+  error = jvm_CreateObject(jvm, bundle, "java/lang/String", &sobject);
+  if (error)
+    return error;
+  error = jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, szlen, &pobject, string);
+  if (error)
+    return error;
+  error = jvm_PutField(bundle, sobject, "data", (uintptr)pobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF | JVM_STACK_ISBYTE);
+  if (error)
+    return error;
+  *out = sobject;
+  return JVM_SUCCESS;
 }
 
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out) {
@@ -735,6 +774,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
         jvm_printf("%c", ((uint8*)pobject->fields)[c]);
       }
       jvm_printf("\n");
+      exit(-4);
       break;
     // EnumClasses
     case 0x463:
@@ -754,7 +794,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
         // get length of that string
         for (x = 0; cn[x] != 0; ++x);
         // create primitive array to hold string
-        error = jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, x, &pobject);
+        error = jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, x, &pobject, 0);
         // fill primitive array
         for (x = 0; cn[x] != 0; ++x)
           ((uint8*)pobject->fields)[x] = cn[x];
@@ -886,8 +926,10 @@ int main(int argc, char *argv[])
   uint32                size;
   int                   result;
   JVMLocal              jvm_result;
+  JVMLocal              _result;
   int                   x;
   uint8                 *entryClass;
+  uint8                 *utf8;
   
   jvm.objects = 0;
   jvm.cmark = 0;
@@ -937,7 +979,30 @@ int main(int argc, char *argv[])
   locals[0].flags = JVM_STACK_ISOBJECTREF;
   result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
   if (result < 0) {
-    debugf("error occured in execution somewhere code:%i\n", result);
+    // the exception should be stored in jvm_result
+    debugf("exception code:%i\n", result);
+    debugf("jvm_result.data:%x jvm_result.flags:%x\n", jvm_result.data, jvm_result.flags);
+    // walk the stack
+    result = jvm_GetField((JVMObject*)jvm_result.data, "first", &_result);
+    debugf("-------- UNCAUGHT EXCEPTION ---------\n");
+    while (_result.data != 0) {
+      result = jvm_GetField((JVMObject*)_result.data, "methodName", &jvm_result);
+      jvm_GetString((JVMObject*)jvm_result.data, &utf8);
+      debugf("    methodName:%s\n", utf8);
+      result = jvm_GetField((JVMObject*)_result.data, "className", &jvm_result);
+      jvm_GetString((JVMObject*)jvm_result.data, &utf8);
+      debugf("    className:%s\n", utf8);
+      result = jvm_GetField((JVMObject*)_result.data, "methodType", &jvm_result);
+      jvm_GetString((JVMObject*)jvm_result.data, &utf8);
+      debugf("    methodType:%s\n", utf8);
+      result = jvm_GetField((JVMObject*)_result.data, "opcodeIndex", &jvm_result);
+      debugf("    opcodeIndex:%u\n", jvm_result.data);
+      //result = jvm_GetField((JVMObject*)_result.data, "sourceLine", &jvm_result);
+      //debugf("sourceLine:%u\n", jvm_result.data);
+      // get next item, if any
+      debugf("    -----\n");
+      result = jvm_GetField((JVMObject*)_result.data, "next", &_result);
+    }
     return -1;
   }
   
