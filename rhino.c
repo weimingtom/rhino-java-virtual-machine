@@ -984,19 +984,20 @@ int main(int argc, char *argv[])
     debugf("jvm_result.data:%x jvm_result.flags:%x\n", jvm_result.data, jvm_result.flags);
     // walk the stack
     result = jvm_GetField((JVMObject*)jvm_result.data, "first", &_result);
-    debugf("-------- UNCAUGHT EXCEPTION ---------\n");
+    errorf("-------- UNCAUGHT EXCEPTION ---------\n");
+    errorf("  %s\n", jvm_GetClassNameFromClass(((JVMObject*)jvm_result.data)->class));
     while (_result.data != 0) {
       result = jvm_GetField((JVMObject*)_result.data, "methodName", &jvm_result);
       jvm_GetString((JVMObject*)jvm_result.data, &utf8);
-      debugf("    methodName:%s\n", utf8);
+      errorf("    methodName:%s", utf8);
       result = jvm_GetField((JVMObject*)_result.data, "className", &jvm_result);
       jvm_GetString((JVMObject*)jvm_result.data, &utf8);
-      debugf("    className:%s\n", utf8);
+      errorf(" className:%s", utf8);
       result = jvm_GetField((JVMObject*)_result.data, "methodType", &jvm_result);
       jvm_GetString((JVMObject*)jvm_result.data, &utf8);
-      debugf("    methodType:%s\n", utf8);
+      errorf(" methodType:%s", utf8);
       result = jvm_GetField((JVMObject*)_result.data, "opcodeIndex", &jvm_result);
-      debugf("    opcodeIndex:%u\n", jvm_result.data);
+      errorf(" opcodeIndex:%u\n", jvm_result.data);
       //result = jvm_GetField((JVMObject*)_result.data, "sourceLine", &jvm_result);
       //debugf("sourceLine:%u\n", jvm_result.data);
       // get next item, if any

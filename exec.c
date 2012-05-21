@@ -194,13 +194,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       debugf("jobject:%x\tstackCnt:%i\tclassName:%s\n", _jobject, _jobject->stackCnt, jvm_GetClassNameFromClass(_jobject->class));
     }
     debugf("\e[7;31mopcode(%u/%u):%x className:%s methodName:%s\e[m\n", x, codesz, opcode, jvm_GetClassNameFromClass(jclass), methodName);
-
-    for (_jobject = jvm->objects; _jobject != 0; _jobject = _jobject->next) {
-      if (_jobject->cmark == 12032) {
-        debugf("object:%x object->cmark:%x set\n", _jobject, 12032);
-        exit(-5);
-      }
-    }
     
     jvm_DebugStack(&stack);
     //fgetc(stdin);
@@ -1496,7 +1489,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           if (_error) break;
           _error = jvm_PutField(bundle, __jobject, "className", (uintptr)___jobject, JVM_STACK_ISOBJECTREF);
           if (_error) break;
-          _error = jvm_CreateString(jvm, bundle, methodType, jvm_strlen(methodType), &___jobject);
+          _error = jvm_CreateString(jvm, bundle, (uint8*)methodType, jvm_strlen(methodType), &___jobject);
           if (_error) break;
           _error = jvm_PutField(bundle, __jobject, "methodType", (uintptr)___jobject, JVM_STACK_ISOBJECTREF);
           if (_error) break;

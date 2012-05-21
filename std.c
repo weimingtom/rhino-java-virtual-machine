@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 void jvm_free(void *p) {
-  printf("##:free:%lx\n", p);
+  minfof("##:free:%lx\n", p);
   free(p);
 }
 
@@ -18,7 +18,7 @@ int jvm_strlen(const char *a) {
 void *jvm__malloc(uintptr size, const char *f, uint32 line) {
   void          *p;
   p = malloc(size);
-  printf("##:alloc:%s:%u:%lx:%u\n", f, line, p, size);
+  minfof("##:alloc:%s:%u:%lx:%u\n", f, line, p, size);
   return p;
 }
 

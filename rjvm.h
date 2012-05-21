@@ -3,12 +3,27 @@
 #include "port.h"
 #include "std.h"
 
-#define DEBUG_INFO
+//#define DEBUG_INFO
 #ifdef DEBUG_INFO
 #define debugf jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
 #else
 #define debugf //
 #endif
+
+#define ERROR_INFO
+#ifdef ERROR_INFO
+#define errorf jvm_printf
+#else
+#define errorf //
+#endif
+
+//#define MALLOC_INFO
+#ifdef MALLOC_INFO
+#define minfof jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
+#else
+#define minfof //
+#endif
+
 
 struct _JVMMemoryStream;
 
