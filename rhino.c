@@ -853,6 +853,7 @@ int jvm_collect(JVM *jvm) {
   
   cmark = jvm->cmark + 1;
   // add all objects to ra
+  jvm_MutexAquire(&jvm->mutex);
   for (co = jvm->objects; co != 0; co = co->next) {
     if (co->stackCnt > 0) {
       ca = (JVMCollect*)jvm_malloc(sizeof(JVMCollect));
@@ -934,6 +935,8 @@ int jvm_collect(JVM *jvm) {
       debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
     }
   }
+
+  jvm_MutexRelease(&jvm->mutex);
   return 1;
 }
 
