@@ -887,6 +887,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// arraylength
       case 0xbe:
+        // this will work for object and primitive array
         jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
@@ -903,7 +904,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_DebugStack(&stack);
         jvm_StackPop(&stack, &result);
         __jobject = (JVMObject*)result.data;
-        // we do not want anything but an object reference
+        // make sure it is not null
         if (!(result.flags & JVM_STACK_ISOBJECTREF) && !(result.flags & JVM_STACK_ISNULL)) {
           error = JVM_ERROR_NOTOBJORARRAY;
           break;
@@ -913,9 +914,9 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         w = result.data;
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
-        // make sure the array is an actual arrayref
-        // primitive arrays are the same but with an
-        // extra type flag
+        // primitive arrays have the same flags
+        // but an extra one-indexed field of 4-bits
+        // specifying the primitive type
         g = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
         if (result.flags != g) {
           error = JVM_ERROR_NOTOBJORARRAY;
@@ -923,8 +924,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
 
         if (__jobject != 0) {
-          // check that the type we are trying to store
-          // is the same or derived from
+          // the object we push into this object array
+          // must be the type specified in the object's
+          // class field or a desendant of it so that
+          // it implements the expected functionality
           if (jvm_IsInstanceOf(bundle, __jobject, jvm_GetClassNameFromClass(_jobject->class))) {
             error = JVM_ERROR_WASNOTINSTANCEOF;
             break;
@@ -948,9 +951,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         w = result.data;
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
-        // make sure the array is an actual arrayref
-        // primitive arrays are the same but with an
-        // extra type flag
+        // the difference in flags for a object array
+        // versus a primitive array is that the primitive
+        // array will have an extra 4-bit value set which
+        // specifies the primitive type, when that extra
+        // field is not set we have an object array whos
+        // type is specified by the class member of the
+        // object array; so here we check if this is just
+        // an object array or something else
         g = JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF;
         if (result.flags != g) {
           error = JVM_ERROR_NOTOBJORARRAY;
