@@ -706,6 +706,7 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   jobject->type = JVM_OBJTYPE_OBJECT;
   // link us into global object chain
   jvm_MutexAquire(&jvm->mutex);
+  jobject->mutex = 0;
   jobject->next = jvm->objects;
   jvm->objects = jobject;
   jvm_MutexRelease(&jvm->mutex);

@@ -22,6 +22,7 @@ int jvm_CreateObjectArray(JVM *jvm, JVMBundle *bundle, uint8 *className, uint32 
   if (!_jobject)
     return JVM_ERROR_OUTOFMEMORY;
   jvm_MutexAquire(&jvm->mutex);
+  _jobject->mutex = 0;
   _jobject->next = jvm->objects;
   jvm->objects = _jobject;
   jvm_MutexRelease(&jvm->mutex);
@@ -46,6 +47,7 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   if (!_jobject)
     return JVM_ERROR_OUTOFMEMORY;
   jvm_MutexAquire(&jvm->mutex);
+  _jobject->mutex = 0;
   _jobject->next = jvm->objects;
   jvm->objects = _jobject;
   jvm_MutexRelease(&jvm->mutex);
@@ -166,18 +168,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   code = method->code->code;
   codesz = method->code->codeLength;
 
-  // weird bug.. i need to add a little onto the stack because
-  // it likes to run over the end a little.. maybe this is just
-  // a bandaid and a deeper problem lies to be found
+  /// weird bug.. i need to add a little onto the stack because
+  /// it likes to run over the end a little.. maybe this is just
+  /// a bandaid and a deeper problem lies to be found
   jvm_StackInit(&stack, method->code->maxStack + 4);
   error = 0;
   
   debugf("method has code(%lx) of length %u\n", code, codesz);
-  /// -----------------------------------------------------
-  /// i think there is a way to determine how much local
-  /// variable space is needed... but for now this will work
-  /// -----------------------------------------------------
-  /// 255 should be maximum local addressable
+  // maxLocals specifie the number of locals the method expects
   locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
   if (!locals)
     return JVM_ERROR_OUTOFMEMORY;
@@ -880,9 +878,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           case 0x4f:
             ((int32*)_jobject->fields)[w] = y;
             break;
-        }        
-        //if (opcode == 0x2e)
-        //  jvm_StackPush(&stack, ((uint64*)_jobject->fields)[w], JVM_STACK_ISINT);
+        }
         x += 1;
         break;
       /// arraylength

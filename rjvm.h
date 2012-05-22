@@ -279,6 +279,8 @@ typedef struct _JVMObject {
   uint16                        cmark;
   // the object absolute type
   uint8                         type;
+  // monitor mutex
+  uint8                         mutex;
 } JVMObject;
 
 typedef struct _JVM {
