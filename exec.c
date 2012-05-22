@@ -268,18 +268,30 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
         x += 2;
         break;
+      /// monitorenter
+      case 0xc2:
+        jvm_StackPop(&stack, &result);
+        jvm_MutexAquire(&((JVMObject*)result.data)->mutex);
+        x += 1;
+        break;
+      /// monitorexit
+      case 0xc3:
+        jvm_StackPop(&stack, &result);
+        jvm_MutexRelease(&((JVMObject*)result.data)->mutex);
+        x += 1;
+        break;
       /// ldc_w:
       /// ldc2_w:
       /// ifnull: if value is null branch
       case 0xc6:
-      y = (int16)(code[x+1] << 8 | code[x+2]);
-      jvm_StackPop(&stack, &result);
-      if (result.flags != JVM_STACK_ISNULL) {
-        x += 3;
-      } else {
-        x += y;
-      }
-      break;
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result);
+        if (result.flags != JVM_STACK_ISNULL) {
+          x += 3;
+        } else {
+          x += y;
+        }
+        break;
       /// ifnonnull: if value is not null branch at instruction
       case 0xc7:
         y = (int16)(code[x+1] << 8 | code[x+2]);
