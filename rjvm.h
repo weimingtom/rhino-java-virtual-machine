@@ -17,7 +17,7 @@
 #define errorf //
 #endif
 
-//#define MALLOC_INFO
+#define MALLOC_INFO
 #ifdef MALLOC_INFO
 #define minfof jvm_printf
 #else
@@ -290,6 +290,8 @@ typedef struct _JVM {
   uint16                cmark;
   // global lock to object chain
   uint8                 mutex;
+  // the bundle of loaded classes
+  JVMBundle             *bundle;
 } JVM;
 
 // java stores all integers in big-endian

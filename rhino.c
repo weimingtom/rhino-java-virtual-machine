@@ -40,7 +40,6 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
         jvm_printf("%c", ((uint8*)pobject->fields)[c]);
       }
       jvm_printf("\n");
-      exit(-4);
       break;
     // EnumClasses
     case 0x463:
@@ -104,6 +103,7 @@ int main(int argc, char *argv[])
   jvm.cmark = 0;
   jvm.mutex = 0;
   jbundle.first = 0;
+  jvm.bundle = &jbundle;
 
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
   //jvm_printf("argcnt:%u\n", x);
