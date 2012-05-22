@@ -348,6 +348,9 @@ void jvm_ScrubStack(JVMStack *stack) {
   JVMLocal              result;
   while (jvm_StackMore(stack)) {
     jvm_StackPop(stack, &result);
+    if (result.flags & JVM_STACK_ISOBJECTREF)
+      if (result.data)
+        ((JVMObject*)result.data)->stackCnt--;
   }
   debugf("done\n");
 }
