@@ -200,6 +200,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
   className = jvm_GetClassNameFromClass(jclass);
 
+  callinfof("##:ci:call:%s:%s:%s\n", className, methodName, methodType);
+  
   debugf("execute code\n");
   /// execute code
   for (x = 0; x < codesz;) {
@@ -282,7 +284,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             jvm_exit(-9);
             break;
         }
-        if (opcode == 12)
+        if (opcode == 0x12)
           x += 2;
         else
           x += 3;
@@ -432,6 +434,16 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
         if ((int32)result.data <= (int32)result2.data) {
+          x += y;
+          break;
+        }
+        x += 3;
+        break;
+      /// ifle
+      case 0x9e:
+        y = (int16)(code[x+1] << 8 | code[x+2]);
+        jvm_StackPop(&stack, &result);
+        if ((int32)result.data <= 0) {
           x += y;
           break;
         }
@@ -1476,6 +1488,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0xac:
       /// return: void from method
       case 0xb1:
+         callinfof("##:ci:return\n", className, methodName, methodType);
+        
          if (opcode != 0xb1)
          {
           // _result is our return value structure
@@ -1526,7 +1540,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("Could not create object java/lang/Exception!\n");
           jvm_exit(_error);
         }
-        _jobject->stackCnt = 0;
+        _error = jvm_PutField(bundle, _jobject, "code", error, JVM_STACK_ISINT);
       } else {
         // this is where a regular exception is caught, normally
         // from the athrow opcode, but if one is passed down

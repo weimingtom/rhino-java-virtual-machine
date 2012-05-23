@@ -17,6 +17,13 @@
 #define errorf //
 #endif
 
+#define CALL_INFO
+#ifdef CALL_INFO
+#define callinfof jvm_printf
+#else
+#define callinfof //
+#endif
+
 #define MALLOC_INFO
 #ifdef MALLOC_INFO
 #define minfof jvm_printf

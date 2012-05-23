@@ -200,7 +200,8 @@ int main(int argc, char *argv[])
     debugf("here %x\n", _result.data);
     jvm_GetString((JVMObject*)_result.data, &utf8);
     errorf(" msg:%s\n", utf8);
-
+    jvm_GetField((JVMObject*)jvm_result.data, "code", &_result);
+    errorf(" code:%i\n", _result.data);
     result = jvm_GetField((JVMObject*)jvm_result.data, "first", &_result);
     while (_result.data != 0) {
       result = jvm_GetField((JVMObject*)_result.data, "methodName", &jvm_result);

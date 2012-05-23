@@ -631,7 +631,7 @@ int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result) {
   int           w;
 
   for (w = 0; w < jobject->fieldCnt; ++w) {
-    debugf("%s==%s\n", fieldName, jobject->_fields[w].name);
+    //debugf("%s==%s\n", fieldName, jobject->_fields[w].name);
     if (jvm_strcmp(jobject->_fields[w].name, fieldName) == 0) {
       result->data = jobject->_fields[w].value;
       result->flags = jobject->_fields[w].aflags;
@@ -654,17 +654,14 @@ int jvm_GetString(JVMObject *in, uint8 **out) {
     return JVM_ERROR_INVALIDARG;
   
   error = jvm_GetField(in, "data", &result);
-  debugf("result.data:%x result.flags:%x\n", result.data, result.flags);
+  //debugf("result.data:%x result.flags:%x\n", result.data, result.flags);
   if (error)
     return error;
-  debugf("a1\n");
   flags = JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF | JVM_STACK_ISBYTE;
   if (result.flags & flags == flags) {
-    debugf("a2\n");
     *out = (uint8*)(((JVMObject*)result.data)->_fields);
     return;
   }
-  debugf("a3\n");
   return JVM_ERROR_INVALIDARG;
 }
 

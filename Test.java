@@ -1,6 +1,9 @@
 class Test {
   public long main() {
-    return 5;
+    String s;
+    s = Integer.toString(12345678);
+    Core.Core.PrintString(s);
+    return 4;
   }
   public static void main(String[] args) {
     Test         o;

@@ -5,7 +5,9 @@ interface Throwable {
 
 public class Exception implements Throwable {
   private ExceptionStackItem    first;
-  public String                 msg;
+  private String                msg;
+  private int                   code;
+
   public Exception(String msg) {
     this.msg = msg;
     this.first = null;
