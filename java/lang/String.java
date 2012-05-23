@@ -20,6 +20,10 @@ public class String {
     return (char)data[index];
   }
 
+  public byte[] getBytes() {
+    return data;
+  }
+
   public static int test(int a, int b) {
     return b;
   }

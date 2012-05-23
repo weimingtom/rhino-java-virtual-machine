@@ -1,3 +1,7 @@
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "rjvm.h"
 #include "ms.h"
 
@@ -12,17 +16,47 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
   JVMObject             *sobject;
   JVMObject             *pobject;
   uint8                 *cn;
-
+  uint8                 lbuf[128];
+  uint8                 *buf;
+  FILE                  *fp;
+  struct stat           _stat;
+  JVMObject             *_jobject;
+  
   debugf("success:%s:%s\n", method8, type8);
   // determine what is being called
   for (x = 0, c = 0; method8[x] != 0; ++x)
     c += method8[x];
 
   debugf("native:%s:%x\n", method8, c);
+  //jvm_exit(-5);
   switch (c) {
+    // ReadFile
+    case 0x2fc:
+      sobject = (JVMObject*)locals[0].data;
+      debugf("sobject %x\n", sobject);
+      if (!sobject)
+        break;
+      pobject = (JVMObject*)sobject->_fields[0].value;
+      for (c = 0; c < pobject->fieldCnt; ++c)
+        lbuf[c] = ((uint8*)pobject->fields)[c];
+      lbuf[c] = 0;
+
+      fp = fopen(&lbuf[0], "rb");
+      fstat(fileno(fp), &_stat);
+      c = _stat.st_size;
+      buf = (uint8*)jvm_malloc(sizeof(uint8) * c);
+      fread(&buf[0], c, 1, fp);
+      fclose(fp);
+
+      error = jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, c, &_jobject, buf);
+      if (error)
+        return error;
+      result->data = (uint64)_jobject;
+      result->flags = JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF | JVM_STACK_ISBYTE;
+      break;
     // Exit
     case 0x19a:
-      exit(-1);
+      jvm_exit(-1);
       break;
     // PrintString
     case 0x484:

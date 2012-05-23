@@ -259,7 +259,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             //jvm_exit(-3);
             break;
           case TAG_INTEGER:
-            jvm_StackPush(&stack, (intptr)((JVMConstPoolInteger*)jclass->pool[y - 1])->value, JVM_STACK_ISINT);
+            jvm_StackPush(&stack, (int64)((JVMConstPoolInteger*)jclass->pool[y - 1])->value, JVM_STACK_ISINT);
             break;
           case TAG_FLOAT:
             debugf("TAG_FLOAT not implemented!\n");
@@ -357,7 +357,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        if ((int64)result.data > (int64)result2.data) {
+        if ((int32)result.data > (int32)result2.data) {
           x += y;
           break;
         }
@@ -368,7 +368,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        if ((int64)result.data < (int64)result2.data) {
+        if ((int32)result.data < (int32)result2.data) {
           x += y;
           break;
         }
@@ -379,7 +379,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        if ((int64)result.data == (int64)result2.data) {
+        if ((int32)result.data == (int32)result2.data) {
           x += y;
           break;
         }
@@ -390,7 +390,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        if ((int64)result.data != (int64)result2.data) {
+        if ((int32)result.data != (int32)result2.data) {
           x += y;
           break;
         }
@@ -401,7 +401,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        if ((int64)result.data >= (int64)result2.data) {
+        if ((int32)result.data >= (int32)result2.data) {
           x += y;
           break;
         }
@@ -412,7 +412,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = (int16)(code[x+1] << 8 | code[x+2]);
         jvm_StackPop(&stack, &result2);
         jvm_StackPop(&stack, &result);
-        if ((int64)result.data <= (int64)result2.data) {
+        if ((int32)result.data <= (int32)result2.data) {
           x += y;
           break;
         }
@@ -455,7 +455,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x99:
         y = code[x+1] << 8 | code[x+2];
         jvm_StackPop(&stack, &result);
-        if (stack.data == 0) {
+        if ((uint32)result.data == 0) {
           x = x + y;
           break;
         }
@@ -465,7 +465,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x9a:
         y = code[x+1] << 8 | code[x+2];
         jvm_StackPop(&stack, &result);
-        if (stack.data != 0) {
+        if ((uint32)result.data != 0) {
           x = x + y;
           break;
         }
@@ -502,7 +502,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// i2l
       case 0x85:
         jvm_StackPop(&stack, &result);
-        result.data = (int64)(int32)result.data;
+        result.data = (int64)result.data;
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
@@ -515,37 +515,37 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         break;
       /// iconst_m1
       case 0x02:
-        jvm_StackPush(&stack, -1, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)-1, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iconst_0
       case 0x03:
-        jvm_StackPush(&stack, 0, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)0, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iconst_1
       case 0x04:
-        jvm_StackPush(&stack, 1, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)1, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iconst_2
       case 0x05:
-        jvm_StackPush(&stack, 2, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)2, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iconst_3
       case 0x06:
-        jvm_StackPush(&stack, 3, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)3, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iconst_4
       case 0x07:
-        jvm_StackPush(&stack, 4, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)4, JVM_STACK_ISINT);
         x += 1;
         break;
       /// iconst_5
       case 0x08:
-        jvm_StackPush(&stack, 5, JVM_STACK_ISINT);
+        jvm_StackPush(&stack, (int32)5, JVM_STACK_ISINT);
         x += 1;
         break;
       /// istore
