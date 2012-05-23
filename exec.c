@@ -137,6 +137,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   JVMConstPoolNameAndType       *d;
   JVMConstPoolFieldRef          *f;
   JVMConstPoolString            *s;
+  JVMConstPoolLong              *l;
   int                           argcnt;
   uint8                         *mclass;
   uint8                         *mmethod;
@@ -215,6 +216,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// nop: no operation
       case 0:
         x += 2;
+        break;
+      /// ldc2_w
+      case 0x14:
+        y = code[x+1] << 8 | code[x+2];
+        l = (JVMConstPoolLong*)jclass->pool[y - 1];
+        debugf("ldc2_w high:%x low:%x\n", l->high, l->low);
+        jvm_StackPush(&stack, (uint64)l->high << 32 | (uint64)l->low, JVM_STACK_ISLONG);
+        x += 3;
         break;
       /// ldc
       /// ldc: push a constant #index from a constant pool (string, int, or float) onto the stack
@@ -1459,11 +1468,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // continue executing..
          x += 3;
          break;
+      /// lreturn: return long from a method
+      case 0xad:
       /// areturn: return reference from a method
       case 0xb0:
       /// ireturn: return integer from method
       case 0xac:
-      debugf("return int from method\n");
       /// return: void from method
       case 0xb1:
          if (opcode != 0xb1)
