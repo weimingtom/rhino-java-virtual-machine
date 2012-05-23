@@ -216,10 +216,17 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0:
         x += 2;
         break;
+      /// ldc
       /// ldc: push a constant #index from a constant pool (string, int, or float) onto the stack
       case 0x12:
+      /// ldc_w
+      case 0x13:
         debugf("LDC\n");
-        y = code[x+1];
+        if (opcode == 0x12)
+          y = code[x+1];
+        else
+          y = code[x+1] << 8 | code[x+2];
+        
         /// determine what this index refers too
         switch (jclass->pool[y - 1]->type) {
           case TAG_STRING:
@@ -266,7 +273,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             jvm_exit(-9);
             break;
         }
-        x += 2;
+        if (opcode == 12)
+          x += 2;
+        else
+          x += 3;
         break;
       /// monitorenter
       case 0xc2:

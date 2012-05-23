@@ -179,11 +179,17 @@ int main(int argc, char *argv[])
     jvm_exit(-1);
   }
 
-  jobject->stackCnt = 22;
+  jobject->stackCnt = 1;
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
-  result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()I", &locals[0], 1, &jvm_result);
+  jvm_result.data = 0;
+  jvm_result.flags = 0;
+  result = jvm_ExecuteObjectMethod(&jvm, &jbundle, jclass, "main", "()J", &locals[0], 1, &jvm_result);
   if (result < 0) {
+    if (!jvm_result.data) {
+      debugf("error occured too soon; error-code:%i\n", result);
+      exit(-1);
+    }
     // the exception should be stored in jvm_result
     debugf("exception code:%i\n", result);
     debugf("jvm_result.data:%x jvm_result.flags:%x\n", jvm_result.data, jvm_result.flags);

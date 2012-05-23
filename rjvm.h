@@ -132,6 +132,12 @@ typedef struct _JVMConstPoolInteger {
   uint32                value;
 } JVMConstPoolInteger;
 
+typedef struct _JVMConstPoolLong {
+  JVMConstPoolItem      hdr;
+  uint32                high;
+  uint32                low;
+} JVMConstPoolLong;
+
 typedef struct _JVMConstPoolUtf8 {
   JVMConstPoolItem      hdr;
   uint16                size;

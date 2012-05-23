@@ -1,6 +1,6 @@
 class Test {
-  public int main() {
-    return Integer.parseInt("394");
+  public long main() {
+    return 5;
   }
   public static void main(String[] args) {
     Test         o;

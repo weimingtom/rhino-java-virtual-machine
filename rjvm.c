@@ -23,6 +23,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   JVMConstPoolFieldRef		*pifr;
   JVMConstPoolString            *pist;
   JVMConstPoolInteger           *piit;
+  JVMConstPoolLong              *pllt;
   JVMClass			*class;
   uint8                         *string;
   
@@ -43,7 +44,18 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   //debugf("cpoolcnt:%u", cpoolcnt);
   for (x = 0; x < cpoolcnt - 1; ++x) {
     tag = msRead8(m);
+    debugf("tag[%u/%u]:%u\n", x, cpoolcnt, tag);
     switch (tag) {
+      case TAG_LONG:
+        pllt = (JVMConstPoolLong*)jvm_malloc(sizeof(JVMConstPoolLong));
+        pool[x+0] = (JVMConstPoolItem*)pllt;
+        pool[x+1] = (JVMConstPoolItem*)pllt;
+        pllt->high = msRead32(m);
+        pllt->low = msRead32(m);
+        pllt->hdr.type = TAG_LONG;
+        debugf("TAG_LONG high:%x low:%x\n", pllt->high, pllt->low);
+        ++x;
+        break;
       case TAG_INTEGER:
         piit = (JVMConstPoolInteger*)jvm_malloc(sizeof(JVMConstPoolInteger));
         pool[x] = (JVMConstPoolItem*)piit;
@@ -55,7 +67,6 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
         pool[x] = (JVMConstPoolItem*)pist;
         pist->stringIndex = msRead16(m);
         pist->hdr.type = TAG_STRING;
-        //debugf("TAG_STRING stringIndex:%u\n", pist->stringIndex);
         break;
       case TAG_METHODREF:
 	pimr = (JVMConstPoolMethodRef*)jvm_malloc(sizeof(JVMConstPoolMethodRef));
@@ -79,7 +90,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	msRead(m, piu8->size, piu8->string);
 	piu8->string[piu8->size] = 0;
 	piu8->hdr.type = TAG_UTF8;
-	//debugf("TAG_UTF8: size:%u string:%s\n", piu8->size, piu8->string);
+	debugf("TAG_UTF8: size:%u string:%s\n", piu8->size, piu8->string);
 	break;
       case TAG_NAMEANDTYPE:
 	pint = (JVMConstPoolNameAndType*)jvm_malloc(sizeof(JVMConstPoolNameAndType));
@@ -98,7 +109,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	//debugf("classIndex:%u nameAndTypeIndex:%u\n", pifr->classIndex, pifr->nameAndTypeIndex);
 	break;
       default:
-	//debugf("unknown tag %u in constant pool\n\n", tag);
+	debugf("unknown tag %u in constant pool\n\n", tag);
 	jvm_exit(-1);
     }
   }

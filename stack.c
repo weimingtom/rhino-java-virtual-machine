@@ -14,7 +14,9 @@ void jvm_StackFree(JVMStack *stack) {
 }
 
 int jvm_StackMore(JVMStack *stack) {
-  return stack->pos;
+  if (stack->pos == 0)
+    return 0;
+  return 1;
 }
 
 void jvm_DebugStack(JVMStack *stack) {
@@ -45,7 +47,7 @@ void jvm_StackPush(JVMStack *stack, int64 value, uint32 flags) {
 }
 
 void jvm_StackPop(JVMStack *stack, JVMLocal *local) {
-  --stack->pos;
+  stack->pos--;
   local->flags = stack->flags[stack->pos];
   local->data = stack->data[stack->pos];
   if (local->flags & JVM_STACK_ISOBJECTREF)
