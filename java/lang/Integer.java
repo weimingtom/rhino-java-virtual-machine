@@ -12,6 +12,29 @@ public class Integer {
     return ni;
   }
 
+  public static String toString(int i) {
+    byte[]      b;
+    int         m;
+    int         x;
+    int         c;
+    String      s;
+    int         zc;
+
+    b = new byte[32];
+    m = 1000000000;
+    x = 0;
+    zc = 0;
+    while (i > 0) {
+      c = i / m;
+      i = i - (c * m);
+      m = m / 10;
+      b[x] = (byte)((int)'0' + c);
+      ++x;
+    }
+    
+    return new String(b);
+  }
+
   public static int parseInt(String s) {
     byte[]      d;
     int         sign;
@@ -30,8 +53,7 @@ public class Integer {
       sign = 1;
       w = -1;
     }
-      
-    // -394
+
     m = 1;
     v = 0;
     for (x = d.length - 1; x > w; --x) {
