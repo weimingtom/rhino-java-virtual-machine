@@ -553,6 +553,16 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPush(&stack, result.data, result.flags);
         x += 1;
         break;
+      /// lconst_0: push long constant 0
+      case 0x09:
+        jvm_StackPush(&stack, 0, JVM_STACK_ISLONG);
+        x += 1;
+        break;
+      /// lconst_1: push long constant 1
+      case 0x0a:
+        jvm_StackPush(&stack, 1, JVM_STACK_ISLONG);
+        x += 1;
+        break;
       /// iconst_m1
       case 0x02:
         jvm_StackPush(&stack, (int32)-1, JVM_STACK_ISINT);
