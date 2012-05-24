@@ -18,25 +18,43 @@ public class Integer {
 
   public static String toString(int i) {
     byte[]      b;
+    byte[]      _b;
     int         m;
     int         x;
     int         c;
     String      s;
     int         zc;
+    int         gotr;
 
     b = new byte[32];
     m = 1000000000;
     x = 0;
     zc = 0;
+    gotr = 0;
+    if ((i & 0x80000000) == 0x80000000) {
+      b[x] = '-';
+      ++x;
+      // convert to positive number
+      i = ~i + 1;
+    }
     while (i > 0) {
       c = i / m;
       i = i - (c * m);
       m = m / 10;
-      b[x] = (byte)((int)'0' + c);
-      ++x;
+      if (c > 0)
+        gotr = 1;
+      if (gotr == 1) {
+        b[x] = (byte)((int)'0' + c);
+        ++x;
+      }
     }
-    
-    return new String(b);
+    // cleanup original buffer by
+    // making a new one of the
+    // exact size of the string
+    _b = new byte[x];
+    for (i = 0; i < x; ++i)
+      _b[i] = b[i];
+    return new String(_b);
   }
 
   public static int parseInt(String s) {
