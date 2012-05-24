@@ -69,7 +69,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
       if (!pobject)
         break;
 
-      debugf("printc:");
+      debugf("##:printc:");
       for (c = 0; c < pobject->fieldCnt; ++c) {
         jvm_printf("%c", ((uint8*)pobject->fields)[c]);
       }

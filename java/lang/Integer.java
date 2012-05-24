@@ -12,6 +12,10 @@ public class Integer {
     return ni;
   }
 
+  public String toString() {
+    return Integer.toString(v);
+  }
+
   public static String toString(int i) {
     byte[]      b;
     int         m;

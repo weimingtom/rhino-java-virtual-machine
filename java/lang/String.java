@@ -36,6 +36,7 @@ public class String {
     int         y;
     int         z;
     int         a;
+    String      _s;
 
     fmt = sfmt.data;
     buf = new byte[256];
@@ -46,12 +47,14 @@ public class String {
       if (fmt[x] == '%') {
         switch (fmt[x + 1]) {
           case 's':
-            src = ((String)args[a++]).data;
+            src = ((String)args[a++]).getBytes();
             for (z = 0; z < src.length; ++z)
               buf[y++] = src[z];
             break;
           case 'i':
-            buf[y++] = '@';
+            src = ((Integer)args[a++]).toString().getBytes();
+            for (z = 0; z < src.length; ++z)
+              buf[y++] = src[z];
             break;
           default:
             buf[y++] = fmt[x];

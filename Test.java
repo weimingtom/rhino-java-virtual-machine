@@ -8,6 +8,8 @@ class Test {
     int                 minver;
     int                 majver;
     int                 cpoolcnt;
+    int                 accessflags;
+    byte                t;
 
     buf = Core.Core.ReadFile("Test.class");
 
@@ -17,9 +19,12 @@ class Test {
     minver = ms.ReadB16();
     majver = ms.ReadB16();
     cpoolcnt = ms.ReadB16();
+    
+    Core.Core.PrintString(String.format("a%sb%ic", "Hello World", cpoolcnt));
 
     return 1;
   }
+
   public static void main(String[] args) {
     Test         o;
     o = new Test();
