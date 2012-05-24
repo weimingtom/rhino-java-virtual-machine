@@ -1259,29 +1259,28 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         _jobject = (JVMObject*)result2.data;
         debugf("_jobject:%x\n", _jobject);
         _jclass = _jobject->class;
-        debugf("qqhere %u\n", _jclass->pool[y - 1]->type);
-        // Utf8
-        if (_jclass->pool[y - 1]->type == 1)
-        {
-          debugf("-->%s\n", ((JVMConstPoolUtf8*)_jclass->pool[y - 1])->string);
-          a = (JVMConstPoolUtf8*)_jclass->pool[y - 1];
-        }
+        debugf("qqhere %u\n", jclass->pool[y - 1]->type);
+        debugf("value.data:%x value.flags:%x\n", result.data, result.flags);
 
         // FieldRef
-        if (_jclass->pool[y - 1]->type == 9) {
-          debugf("@here %u\n", _jclass->pool[y - 1]->type);
-          f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
+        if (jclass->pool[y - 1]->type == 9) {
+          debugf("@here %u\n", jclass->pool[y - 1]->type);
+          f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
           debugf("@here %u\n", f->nameAndTypeIndex);
-          d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
+          d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
           debugf("@here\n");
-          a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
+          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
           debugf("##>%s\n", a->string);
-          //jvm_exit(-4);
+           //jvm_exit(-4);
+        } else {
+          debugf("not FieldRef!?");
+          exit(-5);
         }
         error = jvm_PutField(bundle, (JVMObject*)result2.data, a->string, result.data, result.flags);
         debugf("error:%i\n", error);
         debugf("done\n"); 
         if (error != JVM_SUCCESS) {
+          exit(-4);
           break;
         }
         
