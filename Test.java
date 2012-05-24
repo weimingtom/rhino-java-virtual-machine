@@ -20,7 +20,7 @@ class Test {
     majver = ms.ReadB16();
     cpoolcnt = ms.ReadB16();
     
-    Core.Core.PrintString(String.format("a%sb%ic", "Hello World", -123456));
+    Core.Core.PrintString(String.format("magic:%i minver:%i majver:%i", magic, minver, majver));
 
     return 1;
   }

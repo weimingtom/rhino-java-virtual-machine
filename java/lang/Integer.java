@@ -37,7 +37,10 @@ public class Integer {
       // convert to positive number
       i = ~i + 1;
     }
-    while (i > 0) {
+    if (i == 0) {
+      return "0";
+    }
+    while (m > 0) {
       c = i / m;
       i = i - (c * m);
       m = m / 10;
