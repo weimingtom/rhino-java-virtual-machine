@@ -25,7 +25,7 @@ void jvm_DebugStack(JVMStack *stack) {
   debugf("DBGSTACK stack->pos:%u\n", stack->pos);
   for (x = stack->pos - 1; x > -1; --x)
   {
-    debugf("STACK[%u]: %li:%li\n", x, stack->data[x], stack->flags[x]);
+    debugf("STACK[%u]: %lx:%lx\n", x, stack->data[x], stack->flags[x]);
   }
 }
 

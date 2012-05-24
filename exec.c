@@ -453,6 +453,15 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0xbf:
         error = JVM_ERROR_EXCEPTION;
         break;
+      /// dup_x1
+      case 0x5a:
+        jvm_StackPop(&stack, &result);   // value1
+        jvm_StackPop(&stack, &result2);  // value2
+        jvm_StackPush(&stack, result.data, result.flags);  // value1
+        jvm_StackPush(&stack, result2.data, result2.flags); // value2
+        jvm_StackPush(&stack, result.data, result.flags);  // value1
+        x += 1;
+        break;
       /// dup: duplicate item on top of stack
       case 0x59:
         jvm_StackPop(&stack, &result);
@@ -790,19 +799,23 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       case 0x2f:
       /// saload: load short from array
       case 0x35:
-      /// baload: load byte/boolean from arraylength
+      /// baload: load byte/boolean from array
       case 0x33:
+        jvm_DebugStack(&stack);
         /// index
         jvm_StackPop(&stack, &result);
         w = result.data;
         /// array ref
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
+
+        debugf("index:%u arrayref:%x\n", w, result.data);
+        
         if (!_jobject) {
           error = JVM_ERROR_NULLOBJREF;
           break;
         }
-
+        
         /// is this an object and array?
         if (result.flags & (JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF) !=
                            (JVM_STACK_ISOBJECTREF | JVM_STACK_ISARRAYREF) ) {
@@ -1162,19 +1175,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         
         jvm_StackPush(&stack, result.data, result.flags);
         
-        
-        debugf("fieldCnt %u\n", _jobject->fieldCnt);
-        error = JVM_ERROR_MISSINGFIELD;;
-        for (w = 0; w < _jobject->fieldCnt; ++w) {
-          debugf("##>%x looking for field %s have %s\n", _jobject, a->string, _jobject->_fields[w].name);
-          if (jvm_strcmp(_jobject->_fields[w].name, a->string) == 0) {
-            // push onto the stack
-            jvm_StackPush(&stack, _jobject->_fields[w].value, _jobject->_fields[w].aflags);
-            error = JVM_SUCCESS;
-            break;
-          }
-        }
-        if (error > 0) {
+        if (error) {
           debugf("##>field not found\n");
           break;
         }
@@ -1246,6 +1247,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // object (the object whos field we are setting)
         jvm_StackPop(&stack, &result2);
         _jobject = (JVMObject*)result2.data;
+        debugf("_jobject:%x\n", _jobject);
         _jclass = _jobject->class;
         debugf("qqhere %u\n", _jclass->pool[y - 1]->type);
         // Utf8
@@ -1266,11 +1268,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("##>%s\n", a->string);
           //jvm_exit(-4);
         }
-
         error = jvm_PutField(bundle, (JVMObject*)result2.data, a->string, result.data, result.flags);
-        debugf("done\n");
-        if (error != JVM_SUCCESS)
+        debugf("error:%i\n", error);
+        debugf("done\n"); 
+        if (error != JVM_SUCCESS) {
           break;
+        }
         
         x += 3;
         break;
