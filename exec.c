@@ -255,7 +255,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             /// todo: ref our byte[] to String
             /// todo: also do for putfield and getfield opcodes
             jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, w, &__jobject, 0);
-            __jobject->stackCnt = 1;
+            __jobject->stackCnt = 0;
             debugf("_jobject->_fields:%x\n", _jobject->_fields);
             for (w = 0; w < _jobject->fieldCnt; ++w) {
               debugf("%s.%s.%u\n", _jobject->_fields[w].name, "data", w);
