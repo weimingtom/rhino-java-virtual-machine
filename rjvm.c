@@ -771,7 +771,7 @@ typedef struct _JVMCollect {
   JVMObject             *object;        
 } JVMCollect;
 
-int jvm_collect(JVM *jvm) {
+int jvm_Collect(JVM *jvm) {
   uint16                cmark;  
   JVMCollect            *ra, *ca, *_ca;
   JVMCollect            *rb, *cb;
@@ -782,8 +782,9 @@ int jvm_collect(JVM *jvm) {
 
   ra = 0;
   rb = 0;
-  
-  cmark = jvm->cmark + 1;
+
+  jvm->cmark++;
+  cmark = jvm->cmark;
   // add all objects to ra
   jvm_MutexAquire(&jvm->mutex);
   for (co = jvm->objects; co != 0; co = co->next) {

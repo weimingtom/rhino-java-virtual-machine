@@ -30,6 +30,12 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
   debugf("native:%s:%x\n", method8, c);
   //jvm_exit(-5);
   switch (c) {
+    // Collect
+    case 0x2c6:
+      jvm_Collect(jvm);
+      result->data = 0;
+      result->flags = 0;
+      break;
     // ReadFile
     case 0x2fc:
       sobject = (JVMObject*)locals[0].data;
@@ -222,13 +228,13 @@ int main(int argc, char *argv[])
       result = jvm_GetField((JVMObject*)_result.data, "next", &_result);
     }
     debugf("calling collect.. %x\n", jobject);
-    jvm_collect(&jvm);
+    jvm_Collect(&jvm);
     return -1;
   }
 
   jvm_printf("done! result.data:%i result.flags:%u\n", jvm_result.data, jvm_result.flags);
 
-  jvm_collect(&jvm);
+  jvm_Collect(&jvm);
 
   return 1;
 }
