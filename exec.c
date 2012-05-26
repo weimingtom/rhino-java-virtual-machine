@@ -1304,17 +1304,25 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         for (y = 0; y < 8; ++y) {
           debugf("map[%i]:%x\n", y, nothl(map[y]));
         }
-        
+
         // too low
         if ((int32)result.data < (int32)nothl(map[1])) {
           debugf("too low\n");
-          x += (int32)nothl(map[0]);
+          if ((nothl(map[0]) & 0xffffff00) == 0xffffff00) {
+            x += nothl(map[0]) & 0xff;
+          } else {
+            x += nothl(map[0]);
+          }
           break;
         }
         // too high
         if ((int32)result.data > (int32)nothl(map[2])) {
           debugf("too high\n");
-          x += (int32)nothl(map[0]);
+          if ((nothl(map[0]) & 0xffffff00) == 0xffffff00) {
+            x += nothl(map[0]) & 0xff;
+          } else {
+            x += nothl(map[0]);
+          }
           break;
         }
         w = ((int32)result.data - (int32)nothl(map[1]));
@@ -1327,8 +1335,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           x += nothl(map[3 + w]);
         }
         debugf("x:%i ok:%i\n", x, nothl(map[3 + w]));
-        fgetc(stdin);
-        //exit(-4);
+        //fgetc(stdin);
         break;
       /// lookupswitch
       case 0xab:
