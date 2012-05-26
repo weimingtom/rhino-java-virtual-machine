@@ -778,6 +778,7 @@ int jvm_Collect(JVM *jvm) {
   JVMObject             *co, *_co;
   JVMObjectField        *cof;
   JVMObject             **caf;
+  JVMObject             *r;
   int                   x;
 
   ra = 0;
@@ -859,6 +860,7 @@ int jvm_Collect(JVM *jvm) {
     rb = 0;
   }
 
+  r = 0;
   for (co = jvm->objects; co != 0; co = _co) {
     _co = co->next;
     if ((co->stackCnt == 0) && (co->cmark != cmark)) {
@@ -866,8 +868,12 @@ int jvm_Collect(JVM *jvm) {
       jvm_free(co);
     } else {
       debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
+      co->next = r;
+      r = co;
     }
   }
+
+  jvm->objects = r;
 
   jvm_MutexRelease(&jvm->mutex);
   return 1;
