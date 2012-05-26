@@ -1296,9 +1296,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           w += 4;
         debugf("code[%x]%lx w:%lx\n", x, (uintptr)&code[x], w);
 
+        w += 0;
         map = (uint32*)(w);
 
         debugf("db:%i lb:%i hb:%i\n", nothl(map[0]), nothl(map[1]), nothl(map[2]));
+
+        for (y = 0; y < 8; ++y) {
+          debugf("map[%i]:%x\n", y, nothl(map[y]));
+        }
         
         // too low
         if ((int32)result.data < (int32)nothl(map[1])) {
@@ -1313,8 +1318,17 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           break;
         }
         w = ((int32)result.data - (int32)nothl(map[1]));
-        x += nothl(map[3 + w]);
-        debugf("ok:%i\n", nothl(map[3 + w]));
+        debugf("x:%i w:%i result.data:%i\n", x, w, result.data);
+        debugf("nothl(map[3 + w]):%i\n", nothl(map[3 + w]));
+        // fix for odd case.. not sure..
+        if ((nothl(map[3 + w]) & 0xffffff00) == 0xffffff00) {
+          x += nothl(map[3 + w]) & 0xff;
+        } else {
+          x += nothl(map[3 + w]);
+        }
+        debugf("x:%i ok:%i\n", x, nothl(map[3 + w]));
+        fgetc(stdin);
+        //exit(-4);
         break;
       /// lookupswitch
       case 0xab:
@@ -1533,7 +1547,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     /// END OF SWITCH STATEMENT
     /// ---------------------------------
     jvm_DebugStack(&stack);
-    debugf("error:%i\n", error);
+    debugf("error:%i x:%i\n", error, x);
     // either a exception object was thrown (JVM_ERROR_EXCEPTION) from
     // the athrow opcode or a run-time exception occured and the type
     // of it is stored in error
@@ -1638,7 +1652,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       }
     }
     /// END OF ERROR MANAGEMENT
-   }
+  }
   /// END OF LOOP
   // we never should make it here
   jvm_printf("[error] reached end of loop!?\n");
