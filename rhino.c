@@ -120,7 +120,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
   }
   return JVM_SUCCESS;
 }
-
+#define TESTV (1024 * 1024 * 10)
 int main(int argc, char *argv[])
 {
   uint8                 *buf;
@@ -145,6 +145,10 @@ int main(int argc, char *argv[])
   jbundle.first = 0;
   jvm.bundle = &jbundle;
 
+  jvm_m_give(malloc(TESTV), TESTV); 
+  jvm_m_malloc(128);
+  jvm_m_malloc(128);
+  exit(-4);
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
   //jvm_printf("argcnt:%u\n", x);
 
