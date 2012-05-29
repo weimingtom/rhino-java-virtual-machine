@@ -145,6 +145,7 @@ int main(int argc, char *argv[])
   jbundle.first = 0;
   jvm.bundle = &jbundle;
 
+  jvm_m_give(malloc(TESTV), TESTV);
   jvm_m_give(malloc(TESTV), TESTV); 
   jvm_m_malloc(128);
   jvm_m_malloc(128);

@@ -334,4 +334,6 @@ int jvm_Collect(JVM *jvm);
 int jvm_PutField(JVMBundle *bundle, JVMObject *jobject, uint8 *fieldName, uintptr data, uint32 flags);
 int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result);
 int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, JVMObject **out);
+void jvm_MutexAquire(uint8 *mutex);
+void jvm_MutexRelease(uint8 *mutex);
 #endif

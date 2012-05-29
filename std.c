@@ -6,6 +6,11 @@
 #include <string.h>
 #include <stdio.h>
 
+// Eventually, I will move this out into it's own file
+// but for now it is included in std. With the option
+// to disable/enable it.
+#define STDCMALLOC
+#ifdef STDCMALLOC
 #define JVM_M_FREE      0
 #define JVM_M_USED      (1 << 31)
 
@@ -52,6 +57,11 @@ int jvm_m_give(void *ptr, uintptr size) {
   pt = (JVM_M_PT*)((uintptr)chunk + sizeof(JVM_M_CH));
   pt->fas = chunk->free;
   return JVM_SUCCESS;
+}
+
+void jvm_m_free(void *ptr) {
+  ptr = (void*)((uintptr)ptr - sizeof(JVM_M_PT));
+  ((JVM_M_PT*)ptr)->fas &= ~0x80000000;
 }
 
 void *jvm_m_malloc(size) {
@@ -114,11 +124,19 @@ void *jvm_m_malloc(size) {
       jvm_MutexRelease(&ch->mutex);
     }
   }
+
+  return 0;
 }
+
+#endif
 
 void jvm_free(void *p) {
   minfof("##:mi:free:%lx\n", p);
+  #ifdef STDCMALLOC
   free(p);
+  #else
+  jvm_m_free(p);
+  #endif
 }
 
 int jvm_strlen(const char *a) {
@@ -127,7 +145,7 @@ int jvm_strlen(const char *a) {
 
 void *jvm__malloc(uintptr size, const char *f, uint32 line) {
   void          *p;
-  #ifdef MALLOCFORALLOC
+  #ifdef STDCMALLOC
   p = malloc(size);
   #else
   p = jvm_m_malloc(size);

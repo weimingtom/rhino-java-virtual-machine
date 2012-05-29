@@ -860,19 +860,25 @@ int jvm_Collect(JVM *jvm) {
     rb = 0;
   }
 
+  // new chain head
   r = 0;
   for (co = jvm->objects; co != 0; co = _co) {
     _co = co->next;
     if ((co->stackCnt == 0) && (co->cmark != cmark)) {
+      // free and forget about these
       debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
       jvm_free(co);
     } else {
       debugf("KEEP type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
+      // relink keepers into new chain
       co->next = r;
       r = co;
     }
   }
 
+  // set new chain in old chain's place many of the
+  // items in the old chain are actually now invalid
+  // memory.. so got to make sure to do this
   jvm->objects = r;
 
   jvm_MutexRelease(&jvm->mutex);

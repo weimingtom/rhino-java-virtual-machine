@@ -104,12 +104,12 @@ class Main {
             pfr.type = 9;
             break;
           default:
-            Core.Core.PrintString(String.format("unknown tag %i\n", tag));
+            Core.Core.Print(String.format("unknown tag %i\n", tag));
             Core.Core.Exit(-1);
         }
     }
     
-    Core.Core.PrintString(String.format("magic:%i minver:%i majver:%i", magic, minver, majver));
+    Core.Core.Print(String.format("magic:%i minver:%i majver:%i", magic, minver, majver));
 
     return 1;
   }
