@@ -10,6 +10,7 @@ class Test {
     int                 cpoolcnt;
     int                 accessflags;
     byte                t;
+    int                 x;
 
     buf = Core.Core.ReadFile("Test.class");
 
@@ -18,7 +19,11 @@ class Test {
     magic = ms.ReadB32();
     minver = ms.ReadB16();
     majver = ms.ReadB16();
-    cpoolcnt = ms.ReadB16();
+    cpoolcnt = ms.ReadB16()
+
+    for (x = 0; x < cpoolcnt; ++x) {
+      
+    }
     
     Core.Core.PrintString(String.format("magic:%i minver:%i majver:%i", magic, minver, majver));
 
