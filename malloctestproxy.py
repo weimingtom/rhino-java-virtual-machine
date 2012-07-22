@@ -17,6 +17,7 @@ def main():
 
 	alocs = {}
 	addrs = []
+	data = {}
 	
 	if sys.maxsize > 0xffffffff:
 		ptrsize = 'Q'
@@ -28,12 +29,47 @@ def main():
 	r = random.Random(time.time())
 	while True:
 		# determine if we want to allocate or free
-		o = r.randint(0, 1)
+		o = r.randint(0, 3)
 		# if we have never allocated we can not free
 		# so force to allocate operation this cycle
 		if len(addrs) == 0:
 			o = 0
-
+			
+		# write memory
+		if o == 2:
+			k = addrs[r.randint(0, len(addrs) - 1)]
+			n = alocs[k]
+			d = []
+			while n > 0:
+				d.append(r.randint(0, 255))
+				n = n - 1
+			d = bytes(d)
+			data[k] = d
+			n = alocs[k]
+			print('n:%x k:%x' % (n, k))
+			p.stdin.write(struct.pack('B', 0x02))
+			p.stdin.write(struct.pack('I', n))
+			p.stdin.write(struct.pack(ptrsize, k))
+			p.stdin.write(d)
+			p.stdin.flush()
+			print('memory write')
+			continue
+		# read memory
+		if o == 3:
+			k = addrs[r.randint(0, len(addrs) - 1)]
+			if data[k] is None:
+				continue
+			n = alocs[k]
+			p.stdin.write(struct.pack('B', 0x03))
+			p.stdin.write(struct.pack('I', n))
+			p.stdin.write(struct.pack(ptrsize, k))
+			p.stdin.flush()
+			d = p.stderr.read(n)
+			if d != data[k]:
+				print('data incorrect')
+				stop()
+			print('memory read OK')
+			continue
 		# allocate operation
 		if o == 0:
 			n = r.randint(5, 1024*512)
@@ -74,9 +110,11 @@ def main():
 			# store a record of this allocation
 			addrs.append(addr)
 			alocs[addr] = n
+			data[addr] = None
 			#print('PY-ALLOC', hex(addr), hex(n))
 			amtalloced = amtalloced + n
-		else:
+			continue
+		if o == 1:
 			# free operation (free a previous allocation)	
 			k = addrs[r.randint(0, len(addrs) - 1)]
 			# just a simple sanity check
@@ -92,6 +130,7 @@ def main():
 			p.stdin.write(struct.pack(ptrsize, k))
 			p.stdin.flush()
 			#print('PY-FREE', hex(k))
+			continue
 		print('allocated-memory:%s' % (amtalloced))
     
 try:

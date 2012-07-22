@@ -2,8 +2,11 @@
 #define RJVM_RJVM_H
 #include "port.h"
 #include "std.h"
+#include "conf.h"
 
 typedef uint8 JVM_MUTEX;
+
+#include "rmalloc.h"
 
 #define DEBUG_INFO
 #ifdef DEBUG_INFO
