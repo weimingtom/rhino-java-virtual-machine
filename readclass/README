@@ -1,0 +1,4 @@
+This directory contains an, incomplete program, written in Java using a
+non-standard library to interpret a java class file. It was and is simply
+a way to demonstrate the language support of Rhino at the time. The only
+problem is it is unable to use the standard java library.
