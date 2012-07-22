@@ -10,7 +10,7 @@
 int main(int argc, char *argv[]) 
 {
 	uint8		o;
-	uint32		n;
+	void		*n;
 	void		*p;
 	void		*chunk;
 	
@@ -26,13 +26,13 @@ int main(int argc, char *argv[])
 		debugf("o:%x n:%llx\n", o, n);
 		switch (o) {
 		  case 0:
-			p = jvm_m_malloc(n);
+			p = jvm_m_malloc((uintptr)n);
 			debugf("p:%llx\n", p);
 			fwrite(&p, sizeof(void*), 1, stderr);
 			fflush(stderr);
 			break;
 		  case 1:
-			jvm_m_free((void*)n);
+			jvm_m_free(n);
 			break;
 		}
 	}
