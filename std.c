@@ -90,7 +90,7 @@ void *jvm_m_malloc(size) {
                 rtotal += JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT);
                 _pt = pt;
 			  }
-              //debugf("rtotal:%i jvm_m_isfree:%u\n", rtotal, JVM_M_ISUSED(pt->fas));
+              //debugf("ch:%llx rtotal:%i jvm_m_isfree:%u\n", ch, rtotal, JVM_M_ISUSED(pt->fas));
               // do we have enough?
               if (rtotal >= size) {
                 //  do we have enough at the end to create a new part?
@@ -103,6 +103,7 @@ void *jvm_m_malloc(size) {
                   _pt->fas = JVM_M_FREE | (rtotal - size);
                   //debugf("2A\n");
                   //debugf("ret[split]: pt:%x pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
+                  //ch->free -= sizeof(JVM_M_PT) + size;
                   jvm_MutexRelease(&ch->mutex);
                   return (void*)((uintptr)pt + sizeof(JVM_M_PT));
                 } else {
@@ -110,6 +111,7 @@ void *jvm_m_malloc(size) {
                   // do not bother splitting use as whole
                   //debugf("ret[whole]\n");
                   _pt->fas = JVM_M_USED | rtotal;
+                  //ch->free -= sizeof(JVM_M_PT) + rtotal;
                   //debugf("ret: pt[whole]:%x\n", pt);
                   jvm_MutexRelease(&ch->mutex);
                   return (void*)((uintptr)_pt + sizeof(JVM_M_PT));
@@ -126,7 +128,7 @@ void *jvm_m_malloc(size) {
 void jvm_m_free(void *ptr) {
 	JVM_M_PT		*_ptr;
 	
-	_ptr = (JVM_M_PT*)ptr;
+	_ptr = (JVM_M_PT*)((uintptr)ptr - sizeof(JVM_M_PT));
 	_ptr->fas = 0;
 }
 
