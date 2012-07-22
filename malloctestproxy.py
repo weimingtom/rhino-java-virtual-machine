@@ -6,6 +6,7 @@ import subprocess
 import random
 import time
 import traceback
+import sys
 
 def stop():
 	while True:
@@ -16,6 +17,11 @@ def main():
 
 	alocs = {}
 	addrs = []
+	
+	if sys.maxsize > 0xffffffff:
+		ptrsize = 'Q'
+	else:
+		ptrsize = 'I'
 
 	r = random.Random(time.time())
 	while True:
@@ -32,7 +38,7 @@ def main():
 			# tell the proxy for testing the malloc alogrithm
 			# that we wish to allocate 'n' number of bytes
 			p.stdin.write(struct.pack('B', 0x00))
-			p.stdin.write(struct.pack('Q', n))
+			p.stdin.write(struct.pack(ptrsize, n))
 			p.stdin.flush()
 
 			# read in the address given for the allocation of
@@ -40,8 +46,7 @@ def main():
 			# a 64-bit integer
 			res = p.stderr.read(8)
 			print('len(res)', len(res))
-			addr = struct.unpack_from('II', res)
-			addr = addr[0] | addr[1] << 32
+			addr = struct.unpack_from(ptrsize, res)[0]
 
 			# make sure not only did we not get an already
 			# used address, but also check this address 
@@ -73,7 +78,7 @@ def main():
 			del alocs[k]
 			# tell the test proxy to perform the free operation
 			p.stdin.write(struct.pack('B', 0x01))
-			p.stdin.write(struct.pack('Q', k))
+			p.stdin.write(struct.pack(ptrsize, k))
 			p.stdin.flush()
 			print('PY-FREE', hex(k))
     
