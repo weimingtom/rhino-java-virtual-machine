@@ -82,29 +82,30 @@ void *jvm_m_malloc(size) {
       {
               debugf("looking pt=%x pt-ch=%u ch->size:%u pt->fas:%u\n", pt, (uintptr)pt - (uintptr)ch, ch->size, pt->fas);
               // track consecutive free blocks
-              if (JVM_M_ISUSED(pt->fas))
+              if (JVM_M_ISUSED(pt->fas)) 
+              {
                 rtotal = (int)-sizeof(JVM_M_PT);
-              else
+                _pt = 0;
+			  } else {
                 rtotal += JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT);
+                _pt = pt;
+			  }
               debugf("rtotal:%i jvm_m_isfree:%u\n", rtotal, JVM_M_ISUSED(pt->fas));
               // do we have enough?
               if (rtotal >= size) {
                 //  do we have enough at the end to create a new part?
                 if (rtotal - size > (2 * sizeof(JVM_M_PT))) {
-                  // yes, go back and create header
-                  pt = (JVM_M_PT*)(((uintptr)pt + JVM_M_SIZE(pt->fas)) - rtotal);
-                  pt->fas = JVM_M_USED | size;
-                  // remaining
-                  _pt = (JVM_M_PT*)((uintptr)pt + size + sizeof(JVM_M_PT));
+                  // create two blocks one free one used                  
+                  _pt->fas = JVM_M_USED | size;
+                  _pt = (JVM_M_PT*)((uintptr)_pt + sizeof(JVM_M_PT) + size);
                   _pt->fas = JVM_M_FREE | (rtotal - size);
                   debugf("ret[split]: pt:%x pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
                   jvm_MutexRelease(&ch->mutex);
                   return (void*)((uintptr)pt + sizeof(JVM_M_PT));
                 } else {
-                  // dont bother
+                  // do not bother splitting use as whole
                   debugf("ret[whole]\n");
-                  pt = (JVM_M_PT*)(((uintptr)pt + JVM_M_SIZE(pt->fas)) - rtotal);
-                  pt->fas = JVM_M_USED | rtotal;
+                  _pt->fas = JVM_M_USED | rtotal;
                   debugf("ret: pt[whole]:%x\n", pt);
                   jvm_MutexRelease(&ch->mutex);
                   return (void*)((uintptr)pt + sizeof(JVM_M_PT));

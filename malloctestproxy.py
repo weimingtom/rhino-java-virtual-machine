@@ -48,7 +48,7 @@ def main():
 			# does not fall inside a currently alloced block
 			for a in alocs:
 				s = alocs[a]
-				if (addr >= a) or (addr < (a + s)):
+				if (addr >= a) and (addr < (a + s)):
 				  print('[!] addr inside prior allocation!')
 				  print('[!] prior:%x at length %x (this is %x)' % (a, s, addr))
 				  print('[!] test failed')
