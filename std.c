@@ -30,6 +30,10 @@ typedef struct _JVM_M_MS {
 
 JVM_M_MS                g_jvm_m_ms;
 
+void jvm_m_init() {
+	g_jvm_m_ms->first = 0;
+}
+
 int jvm_m_give(void *ptr, uintptr size) {
   JVM_M_CH      *chunk;
   JVM_M_MS      *ms;
@@ -62,6 +66,7 @@ void *jvm_m_malloc(size) {
   int                   rtotal;
   
   ms = &g_jvm_m_ms;
+  _pt = 0;
   //debugf("malloc ms->first=%x\n", ms->first);
   for (ch = ms->first; ch != 0; ch = ch->next) {
     // check if block has enough free
@@ -88,9 +93,11 @@ void *jvm_m_malloc(size) {
                 _pt = 0;
 			  } else {
                 rtotal += JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT);
-                _pt = pt;
+                // if 'pt' is zero then set it if not leave it
+                if (!_pt)
+					_pt = pt;
 			  }
-              //debugf("ch:%llx rtotal:%i jvm_m_isfree:%u\n", ch, rtotal, JVM_M_ISUSED(pt->fas));
+              debugf("ch:%llx rtotal:%i jvm_m_isfree:%u\n", ch, rtotal, JVM_M_ISUSED(pt->fas));
               // do we have enough?
               if (rtotal >= size) {
                 //  do we have enough at the end to create a new part?
