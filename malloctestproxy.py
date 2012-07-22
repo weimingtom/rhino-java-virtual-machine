@@ -22,6 +22,8 @@ def main():
 		ptrsize = 'Q'
 	else:
 		ptrsize = 'I'
+		
+	amtalloced = 0
 
 	r = random.Random(time.time())
 	while True:
@@ -44,8 +46,7 @@ def main():
 			# read in the address given for the allocation of
 			# specified size and convert it from bytes into
 			# a 64-bit integer
-			res = p.stderr.read(8)
-			print('len(res)', len(res))
+			res = p.stderr.read(struct.calcsize(ptrsize))
 			addr = struct.unpack_from(ptrsize, res)[0]
 
 			# make sure not only did we not get an already
@@ -61,26 +62,29 @@ def main():
 			# store a record of this allocation
 			addrs.append(addr)
 			alocs[addr] = n
-			print('PY-ALLOC', hex(addr), hex(n))
+			#print('PY-ALLOC', hex(addr), hex(n))
 			if addr == 0:
 				print('[!] addr returned from malloc zero')
 				print('[!] test _maybe_ failed (anyone can run something out of memory)')
 				stop()
+			amtalloced = amtalloced + n
 		else:
 			# free operation (free a previous allocation)	
 			k = addrs[r.randint(0, len(addrs) - 1)]
 			# just a simple sanity check
 			if k not in alocs:
-				print('addr not in allocs', addr);
+				print('addr not in allocs (if this even possible, LOL)', addr);
 				stop()
 			# remove from our data
+			amtalloced = amtalloced - alocs[k]
 			addrs.remove(k)
 			del alocs[k]
 			# tell the test proxy to perform the free operation
 			p.stdin.write(struct.pack('B', 0x01))
 			p.stdin.write(struct.pack(ptrsize, k))
 			p.stdin.flush()
-			print('PY-FREE', hex(k))
+			#print('PY-FREE', hex(k))
+		print('allocated-memory:%s' % (amtalloced))
     
 try:
 	main()

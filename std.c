@@ -62,14 +62,14 @@ void *jvm_m_malloc(size) {
   int                   rtotal;
   
   ms = &g_jvm_m_ms;
-  debugf("malloc ms->first=%x\n", ms->first);
+  //debugf("malloc ms->first=%x\n", ms->first);
   for (ch = ms->first; ch != 0; ch = ch->next) {
     // check if block has enough free
-    debugf("check ch->free=%u >= %u\n", ch->free, size);
+    //debugf("check ch->free=%u >= %u\n", ch->free, size);
     if (ch->free >= size) {
       // lock the chunk
       jvm_MutexAquire(&ch->mutex);
-      debugf("mutex aquired\n");
+      //debugf("mutex aquired\n");
       rtotal = -4;
       for (
               // grab first part for intialization
@@ -80,7 +80,7 @@ void *jvm_m_malloc(size) {
               pt = (JVM_M_PT*)((uintptr)pt + JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT))
           )
       {
-              debugf("looking pt=%x pt-ch=%u ch->size:%u pt->fas:%u\n", pt, (uintptr)pt - (uintptr)ch, ch->size, pt->fas);
+              //debugf("size:%x looking pt=%x pt-ch=%u ch->size:%u pt->fas:%u\n", size, pt, (uintptr)pt - (uintptr)ch, ch->size, pt->fas);
               // track consecutive free blocks
               if (JVM_M_ISUSED(pt->fas)) 
               {
@@ -90,25 +90,29 @@ void *jvm_m_malloc(size) {
                 rtotal += JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT);
                 _pt = pt;
 			  }
-              debugf("rtotal:%i jvm_m_isfree:%u\n", rtotal, JVM_M_ISUSED(pt->fas));
+              //debugf("rtotal:%i jvm_m_isfree:%u\n", rtotal, JVM_M_ISUSED(pt->fas));
               // do we have enough?
               if (rtotal >= size) {
                 //  do we have enough at the end to create a new part?
                 if (rtotal - size > (2 * sizeof(JVM_M_PT))) {
                   // create two blocks one free one used                  
                   _pt->fas = JVM_M_USED | size;
+                  pt = _pt;
                   _pt = (JVM_M_PT*)((uintptr)_pt + sizeof(JVM_M_PT) + size);
+                  //debugf("1A %llx\n", _pt);
                   _pt->fas = JVM_M_FREE | (rtotal - size);
-                  debugf("ret[split]: pt:%x pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
+                  //debugf("2A\n");
+                  //debugf("ret[split]: pt:%x pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
                   jvm_MutexRelease(&ch->mutex);
                   return (void*)((uintptr)pt + sizeof(JVM_M_PT));
                 } else {
+			      //debugf("2\n");
                   // do not bother splitting use as whole
-                  debugf("ret[whole]\n");
+                  //debugf("ret[whole]\n");
                   _pt->fas = JVM_M_USED | rtotal;
-                  debugf("ret: pt[whole]:%x\n", pt);
+                  //debugf("ret: pt[whole]:%x\n", pt);
                   jvm_MutexRelease(&ch->mutex);
-                  return (void*)((uintptr)pt + sizeof(JVM_M_PT));
+                  return (void*)((uintptr)_pt + sizeof(JVM_M_PT));
                 }
               }
       }
