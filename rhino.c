@@ -2,6 +2,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <malloc.h>
+
 #include "rjvm.h"
 #include "ms.h"
 
@@ -120,7 +122,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
   }
   return JVM_SUCCESS;
 }
-#define TESTV (1024 * 1024 * 10)
+#define TESTV (1024 * 1024 * 4)
 int main(int argc, char *argv[])
 {
   uint8                 *buf;
@@ -139,17 +141,16 @@ int main(int argc, char *argv[])
   uint8                 *entryClass;
   uint8                 *utf8;
 
+  uint8                 o;
+  uintptr               n;
+  void                  *p;
+  
   jvm.objects = 0;
   jvm.cmark = 0;
   jvm.mutex = 0;
   jbundle.first = 0;
   jvm.bundle = &jbundle;
-
-  jvm_m_give(malloc(TESTV), TESTV);
-  jvm_m_give(malloc(TESTV), TESTV); 
-  jvm_m_malloc(128);
-  jvm_m_malloc(128);
-  exit(-4);
+  
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
   //jvm_printf("argcnt:%u\n", x);
 

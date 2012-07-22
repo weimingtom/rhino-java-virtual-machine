@@ -1,0 +1,18 @@
+Rhino
+
+This is a project that I started to help me learn more about the 
+internal workings of a Java virtual machine, and also to produce
+a usable virtual machine for a embedded platform.
+
+
+== COMPILATION ==
+To compile the virtual machine you need to execute 'make' in the working
+directory of the souce which should be the base directory. This will
+create a executable 'rhino' which can be executed.
+
+== READCLASS Sub-Directory ==
+This contains a java program using my custom standard library of 
+functions to load a class like it's self and parse it. This is just
+a simple demonstration of doing something.
+
+
