@@ -1,6 +1,6 @@
-default:
+default: *.c *.h
 	gcc -Os exec.c ms.c rhino.c rjvm.c stack.c std.c -o rhino
-malloctestproxy: ms.c malloctestproxy.c rjvm.c stack.c std.c
+malloctestproxy: *.c *.h
 	gcc -0s exec.c ms.c malloctestproxy.c rjvm.c stack.c std.c -o malloctestproxy
 
 java: makejavalang makecore maketest makeutil

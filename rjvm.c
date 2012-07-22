@@ -683,11 +683,11 @@ int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, J
   return JVM_SUCCESS;
 }
 
-void jvm_MutexAquire(uint8 *mutex) {
+void jvm_MutexAquire(JVM_MUTEX *mutex) {
   while (__sync_lock_test_and_set(mutex, 1));
 }
 
-void jvm_MutexRelease(uint8 *mutex) {
+void jvm_MutexRelease(JVM_MUTEX *mutex) {
   *mutex = 0;
 }
 

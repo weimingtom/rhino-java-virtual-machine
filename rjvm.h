@@ -3,6 +3,8 @@
 #include "port.h"
 #include "std.h"
 
+typedef uint8 JVM_MUTEX;
+
 #define DEBUG_INFO
 #ifdef DEBUG_INFO
 #define debugf jvm_printf("[%s:%u] ", __FUNCTION__, __LINE__); jvm_printf
@@ -293,7 +295,7 @@ typedef struct _JVMObject {
   // the object absolute type
   uint8                         type;
   // monitor mutex
-  uint8                         mutex;
+  JVM_MUTEX                     mutex;
 } JVMObject;
 
 typedef struct _JVM {
@@ -302,10 +304,11 @@ typedef struct _JVM {
   // last garbage collector mark
   uint16                cmark;
   // global lock to object chain
-  uint8                 mutex;
+  JVM_MUTEX             mutex;
   // the bundle of loaded classes
   JVMBundle             *bundle;
 } JVM;
+
 
 // java stores all integers in big-endian
 #define LENDIAN
@@ -334,6 +337,6 @@ int jvm_Collect(JVM *jvm);
 int jvm_PutField(JVMBundle *bundle, JVMObject *jobject, uint8 *fieldName, uintptr data, uint32 flags);
 int jvm_GetField(JVMObject *jobject, uint8 *fieldName, JVMLocal *result);
 int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, JVMObject **out);
-void jvm_MutexAquire(uint8 *mutex);
-void jvm_MutexRelease(uint8 *mutex);
+void jvm_MutexAquire(JVM_MUTEX *mutex);
+void jvm_MutexRelease(JVM_MUTEX *mutex);
 #endif

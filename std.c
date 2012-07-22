@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #define JVM_M_FREE      0
-#define JVM_M_USED      (1 << 31)
+#define JVM_M_USED      0x80000000
 
 #define JVM_M_ISUSED(fas) ((fas) & 0x80000000)
 #define JVM_M_ISLAST(fs) ((fas) & 0x40000000)
@@ -19,7 +19,7 @@ typedef struct _JVM_M_PT {
 
 typedef struct _JVM_M_CH {
   struct _JVM_M_CH      *next;
-  uint8                 mutex;
+  JVM_MUTEX             mutex;
   uint32                size;
   uint32                free;
 } JVM_M_CH;
@@ -66,11 +66,11 @@ void *jvm_m_malloc(size) {
   int                   rtotal;
   
   ms = &g_jvm_m_ms;
-  _pt = 0;
   //debugf("malloc ms->first=%x\n", ms->first);
   for (ch = ms->first; ch != 0; ch = ch->next) {
     // check if block has enough free
     //debugf("check ch->free=%u >= %u\n", ch->free, size);
+    _pt = 0;
     if (ch->free >= size) {
       // lock the chunk
       jvm_MutexAquire(&ch->mutex);
@@ -97,7 +97,8 @@ void *jvm_m_malloc(size) {
                 if (!_pt)
 					_pt = pt;
 			  }
-              debugf("ch:%llx rtotal:%i jvm_m_isfree:%u\n", ch, rtotal, JVM_M_ISUSED(pt->fas));
+              debugf("ch:%x _pt:%x pt:%x pt->fas:%x size:%x\n", ch, _pt, pt, pt->fas, size);
+              sleep(1);
               // do we have enough?
               if (rtotal >= size) {
                 //  do we have enough at the end to create a new part?
@@ -107,16 +108,16 @@ void *jvm_m_malloc(size) {
                   pt = _pt;
                   _pt = (JVM_M_PT*)((uintptr)_pt + sizeof(JVM_M_PT) + size);
                   //debugf("1A %llx\n", _pt);
-                  _pt->fas = JVM_M_FREE | (rtotal - size);
+                  _pt->fas = JVM_M_FREE | ((rtotal - size) - sizeof(JVM_M_PT));
                   //debugf("2A\n");
-                  //debugf("ret[split]: pt:%x pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
+                  debugf("ret[split]: pt:%x pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
                   //ch->free -= sizeof(JVM_M_PT) + size;
                   jvm_MutexRelease(&ch->mutex);
                   return (void*)((uintptr)pt + sizeof(JVM_M_PT));
                 } else {
-			      //debugf("2\n");
+			      debugf("2\n");
                   // do not bother splitting use as whole
-                  //debugf("ret[whole]\n");
+                  debugf("ret[whole] rtotal:%x\n", rtotal);
                   _pt->fas = JVM_M_USED | rtotal;
                   //ch->free -= sizeof(JVM_M_PT) + rtotal;
                   //debugf("ret: pt[whole]:%x\n", pt);
@@ -136,7 +137,7 @@ void jvm_m_free(void *ptr) {
 	JVM_M_PT		*_ptr;
 	
 	_ptr = (JVM_M_PT*)((uintptr)ptr - sizeof(JVM_M_PT));
-	_ptr->fas = 0;
+	_ptr->fas = JVM_M_SIZE(_ptr->fas) | JVM_M_FREE;
 }
 
 void jvm_free(void *p) {
