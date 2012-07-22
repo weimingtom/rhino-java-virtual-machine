@@ -1,4 +1,20 @@
 #include "rmalloc.h"
+/*
+	These are the internal malloc routines which are OPTIONAL, and can
+	be enabled by editing conf.h and uncommenting the INTERNALMALLOC
+	directive.
+	
+	The test case for these routines can be found by invoking make with
+	the argument malloctestproxy. A executable 'malloctestproxy' will be
+	produced. Do NOT run this directly. Instead, invoke the Python script
+	in the file 'malloctestproxy.py'. The Python script will then invoke
+	the executable and communicate with. It will then perform allocations,
+	deallocations, writes, and reads to ensure it works in a general sense
+	correctly. It can not catch all mistakes, but most.
+	
+	If you change this file it is recommened that you run the Python
+	test case to ensure no major bugs are present.
+*/
 
 JVM_M_MS                g_jvm_m_ms;
 

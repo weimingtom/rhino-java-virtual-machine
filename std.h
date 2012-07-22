@@ -3,6 +3,7 @@
 #include "port.h"
 #include <stdio.h>
 
+uint8* jvm_ReadWholeFile(const char *path, uint32 *size);
 void jvm_free(void *p);
 #define jvm_malloc(s) jvm__malloc((s), __FUNCTION__, __LINE__);
 void *jvm__malloc(uintptr size, const char *function, uint32 line);

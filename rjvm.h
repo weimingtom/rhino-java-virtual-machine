@@ -333,7 +333,6 @@ void jvm_ScrubLocals(JVMLocal *locals, uint8 maxLocals);
 void jvm_ScrubStack(JVMStack *stack);
 int jvm_IsInstanceOf(JVMBundle *bundle, JVMObject *jobject, uint8 *className);
 int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObject **out);
-uint8* jvm_ReadWholeFile(const char *path, uint32 *size);
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass);
 uint8* jvm_GetClassNameFromClass(JVMClass *c);
 int jvm_Collect(JVM *jvm);

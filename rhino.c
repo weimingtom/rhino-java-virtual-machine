@@ -154,14 +154,18 @@ int main(int argc, char *argv[])
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
   //jvm_printf("argcnt:%u\n", x);
 
+  debugf("**\n");
   buf = jvm_ReadWholeFile("./Core/Core.class", &size);
+  debugf("**\n");
   msWrap(&m, buf, size);
+  debugf("**\n");
   jclass = jvm_LoadClass(&m);
+  debugf("**\n");
   jclass->flags = JVM_CLASS_NATIVE;
   jclass->nhand = jvm_core_core_handler;
   jvm_free(buf);
   jvm_AddClassToBundle(&jbundle, jclass);
-
+  
   for (x = 1; x < argc; ++x) {
     if (argv[x][0] == ':') {
       // holds classpath and class name for entry

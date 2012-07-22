@@ -731,25 +731,6 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   return jvm_ExecuteObjectMethod(jvm, bundle, jclass, "<init>", "()V", &locals[0], 1, &result);
 }
 
-uint8* jvm_ReadWholeFile(const char *path, uint32 *size) {
-  uint8         *buf;
-  FILE          *fp;
-  
-  fp = fopen(path, "rb");
-  if (!fp) {
-    debugf("error could not open file %s", path);
-    jvm_exit(-4);
-  }
-  fseek(fp, 0, 2);
-  *size = ftell(fp);
-  fseek(fp, 0, 0);
-  buf = (uint8*)jvm_malloc(*size);
-  fread(buf, 1, *size, fp);
-  fclose(fp);
-  
-  return buf;
-}
-
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass) {
   JVMBundleClass                *jbclass;
 

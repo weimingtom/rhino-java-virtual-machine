@@ -125,6 +125,7 @@ def main():
 			amtalloced = amtalloced - alocs[k]
 			addrs.remove(k)
 			del alocs[k]
+			del data[k]
 			# tell the test proxy to perform the free operation
 			p.stdin.write(struct.pack('B', 0x01))
 			p.stdin.write(struct.pack(ptrsize, k))
