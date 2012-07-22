@@ -11,4 +11,6 @@ void *jvm__malloc(uintptr size, const char *function, uint32 line);
 void jvm_exit(int result);
 int jvm_strcmp(const char *a, const char *b);
 int jvm_strlen(const char *a);
+void *jvm_m_malloc(int32 size);
+void jvm_m_free(void *ptr);
 #endif
