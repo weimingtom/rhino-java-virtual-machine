@@ -31,7 +31,7 @@ typedef struct _JVM_M_MS {
 JVM_M_MS                g_jvm_m_ms;
 
 void jvm_m_init() {
-	g_jvm_m_ms->first = 0;
+	g_jvm_m_ms.first = 0;
 }
 
 int jvm_m_give(void *ptr, uintptr size) {

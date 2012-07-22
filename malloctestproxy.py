@@ -36,7 +36,7 @@ def main():
 
 		# allocate operation
 		if o == 0:
-			n = r.randint(5, 128)
+			n = r.randint(5, 1024*512)
 			# tell the proxy for testing the malloc alogrithm
 			# that we wish to allocate 'n' number of bytes
 			p.stdin.write(struct.pack('B', 0x00))
@@ -46,8 +46,20 @@ def main():
 			# read in the address given for the allocation of
 			# specified size and convert it from bytes into
 			# a 64-bit integer
-			res = p.stderr.read(struct.calcsize(ptrsize))
+			res = ''
+			while len(res) == 0:
+				res = p.stderr.read(struct.calcsize(ptrsize))
 			addr = struct.unpack_from(ptrsize, res)[0]
+
+			# this can happen and i want to test against it
+			# because things have to be done a certain way
+			# and also we are testing the logic for when we
+			# bump against the ceiling and allocate that very
+			# last block..
+			if addr == 0:
+				print('[!] got out of memory code or error')
+				print('[!] allocated memory is %s' % (amtalloced))
+				continue
 
 			# make sure not only did we not get an already
 			# used address, but also check this address 
@@ -63,10 +75,6 @@ def main():
 			addrs.append(addr)
 			alocs[addr] = n
 			#print('PY-ALLOC', hex(addr), hex(n))
-			if addr == 0:
-				print('[!] addr returned from malloc zero')
-				print('[!] test _maybe_ failed (anyone can run something out of memory)')
-				stop()
 			amtalloced = amtalloced + n
 		else:
 			# free operation (free a previous allocation)	
