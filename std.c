@@ -19,7 +19,9 @@ uint8* jvm_ReadWholeFile(const char *path, uint32 *size) {
   *size = ftell(fp);
   fseek(fp, 0, 0);
   buf = (uint8*)jvm_malloc(*size);
+  debugf("here %llx\n", buf);
   fread(buf, 1, *size, fp);
+  debugf("here\n");
   fclose(fp);
   
   return buf;

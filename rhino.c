@@ -153,6 +153,13 @@ int main(int argc, char *argv[])
   
   //x = jvm_GetMethodTypeArgumentCount("(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
   //jvm_printf("argcnt:%u\n", x);
+  
+  // if the internal malloc is enabled we simply just hand it
+  // a rather large chunk of memory to use
+  #ifdef INTERNALMALLOC
+  p = malloc(1024 * 1024 * 8);
+  jvm_m_give(p, 1024 * 1024 * 8);
+  #endif
 
   debugf("**\n");
   buf = jvm_ReadWholeFile("./Core/Core.class", &size);
@@ -166,6 +173,7 @@ int main(int argc, char *argv[])
   jvm_free(buf);
   jvm_AddClassToBundle(&jbundle, jclass);
   
+  entryClass = 0;
   for (x = 1; x < argc; ++x) {
     if (argv[x][0] == ':') {
       // holds classpath and class name for entry
@@ -186,6 +194,13 @@ int main(int argc, char *argv[])
   debugf("here\n");
   jvm_MakeStaticFieldsOnBundle(&jvm, &jbundle);
   debugf("here\n");
+  
+  // catch common mistake and present user with something meaningful
+  if (!entryClass) {
+    debugf("No entry class specified on command line with :<entryclass>\n");
+    return -1;
+  }
+  
   /// create initial object
   result = jvm_CreateObject(&jvm, &jbundle, entryClass, &jobject);
   jclass = jvm_FindClassInBundle(&jbundle, entryClass);

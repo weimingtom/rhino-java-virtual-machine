@@ -58,7 +58,11 @@ exec.c & exec.h
 rhino.c
 	This holds the entry function. It prepares to interpret a Java
 	class file. It also handles parsing command line arguments, and
-	loading of class files into a bundle.
+	loading of class files into a bundle. 
+	
+	If you are going to embed or use the rhino project then this file
+	is the one you will either edit the most or simply replace. It 
+	currently provides testing from the command line.
 
 stack.c & stack.h
 	Both these files hold a implementation of a basic stack which 
