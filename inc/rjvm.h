@@ -108,14 +108,14 @@ struct _JVMMemoryStream;
 #define JVM_OBJTYPE_OARRAY      3
 
 typedef struct _JVMStack {
-  uintptr               *data;
+  uint64                *data;
   uint32                *flags;
   uint32                pos;
   uint32                max;
 } JVMStack;
 
 typedef struct _JVMLocal {
-  uintptr               data;
+  uint64                data;
   uint32                flags;
 } JVMLocal;
 
