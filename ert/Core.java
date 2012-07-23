@@ -9,5 +9,4 @@ public class Core {
   public native static void Exit(int code);
   public native static Thread ThreadCreate(Object arg);
   public native static byte[] ReadFile(String path);
-  public native static void Collect();
 } 
