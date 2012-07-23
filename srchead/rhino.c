@@ -206,7 +206,6 @@ int main(int argc, char *argv[])
     jvm_exit(-1);
   }
 
-  jobject->stackCnt = 1;
   locals[0].data = (uint64)jobject;
   locals[0].flags = JVM_STACK_ISOBJECTREF;
   jvm_result.data = 0;

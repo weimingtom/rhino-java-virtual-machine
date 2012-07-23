@@ -4,18 +4,28 @@ interface Throwable {
 }
 
 public class Exception implements Throwable {
-  private ExceptionStackItem    first;
+  private Exception             cause;
   private String                msg;
   private int                   code;
 
   public Exception(String msg) {
     this.msg = msg;
-    this.first = null;
+    this.cause = null;
   }
+  
   public Exception() {
   }
+  
+  public Exception(String msg, Exception cause) {
+    this.msg = msg;
+    this.cause = cause;
+  }
+  
+  public Exception getCause() {
+    return this.cause;
+  }
 
-  public String GetMessage() {
+  public String getMessage() {
     return this.msg;
   }
 }

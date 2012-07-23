@@ -278,6 +278,10 @@ typedef struct _JVMObjectField {
     uint32                      aflags;
 } JVMObjectField;
 
+#define JVM_OBJECT_CMARK_FLAG_NOCOLLECT 0x80
+#define JVM_OBJCOLHOLD(p) ((p)->cmark = (p)->cmark | JVM_OBJECT_CMARK_FLAG_NOCOLLECT)
+#define JVM_OBJCOLRELEASE(p) ((p)->cmark = (p)->cmark & ~JVM_OBJECT_CMARK_FLAG_NOCOLLECT)
+
 typedef struct _JVMObject {
   struct _JVMObject             *next;
   // used as max count by primitive
@@ -294,7 +298,7 @@ typedef struct _JVMObject {
   // how many instances are on stack and locals
   uint16                        stackCnt;
   // garbage collector mark
-  uint16                        cmark;
+  uint8                         cmark;
   // the object absolute type
   uint8                         type;
   // monitor mutex
@@ -305,7 +309,7 @@ typedef struct _JVM {
   // all objects instanced on heap
   JVMObject             *objects;
   // last garbage collector mark
-  uint16                cmark;
+  uint8                 cmark;
   // global lock to object chain
   JVM_MUTEX             mutex;
   // the bundle of loaded classes

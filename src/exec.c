@@ -21,8 +21,9 @@ int jvm_CreateObjectArray(JVM *jvm, JVMBundle *bundle, uint8 *className, uint32 
   _jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
   if (!_jobject)
     return JVM_ERROR_OUTOFMEMORY;
-  jvm_MutexAquire(&jvm->mutex);
+  JVM_OBJCOLHOLD(_jobject);
   _jobject->mutex = 0;
+  jvm_MutexAquire(&jvm->mutex);
   _jobject->next = jvm->objects;
   jvm->objects = _jobject;
   jvm_MutexRelease(&jvm->mutex);
@@ -46,8 +47,9 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   _jobject = (JVMObject*)jvm_malloc(sizeof(JVMObject));
   if (!_jobject)
     return JVM_ERROR_OUTOFMEMORY;
-  jvm_MutexAquire(&jvm->mutex);
+  JVM_OBJCOLHOLD(_jobject);
   _jobject->mutex = 0;
+  jvm_MutexAquire(&jvm->mutex);
   _jobject->next = jvm->objects;
   jvm->objects = _jobject;
   jvm_MutexRelease(&jvm->mutex);
@@ -264,6 +266,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
                 _jobject->_fields[w].aflags = JVM_STACK_ISARRAYREF |
                                               JVM_STACK_ISOBJECTREF |
                                               (JVM_STACK_ISBYTE << 4);
+                JVM_OBJCOLRELEASE(__jobject);
                 break;
               }
             }
@@ -272,6 +275,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
               ((uint8*)__jobject->fields)[w] = a->string[w];
             // push onto stack the String object
             jvm_StackPush(&stack, _jobject, JVM_STACK_ISOBJECTREF);
+            JVM_OBJCOLRELEASE(_jobject);
             jvm_DebugStack(&stack);
             //debugf("STOP w:%u\n", w);
             //jvm_exit(-3);
@@ -484,6 +488,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         _jobject->stackCnt = 0;
         // place object instance onto stack
         jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
+        JVM_OBJCOLRELEASE(_jobject);
         x += 3;
         break;
       /// goto
@@ -1070,6 +1075,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         }
 
         jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        JVM_OBJCOLRELEASE(_jobject);
         
         x += 3;
         break;
@@ -1080,6 +1086,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_CreatePrimArray(jvm, bundle, y, result.data, &_jobject, 0);
         debugf("##> primarray %x\n", _jobject);
         jvm_StackPush(&stack, (uintptr)_jobject, (y << 4) | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
+        JVM_OBJCOLRELEASE(_jobject);
         x += 2;
         break;
       /// sipush: push a short onto the stack
@@ -1496,6 +1503,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // code block a ways below
          if (eresult < 0) {
            jvm_StackPush(&stack, result.data, result.flags);
+           JVM_OBJCOLRELEASE((JVMObject*)result.data);
            error = JVM_ERROR_EXCEPTION;
            debugf("propagating error down the stack frames..\n");
            break;
@@ -1578,6 +1586,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         // this is where a regular exception is caught, normally
         // from the athrow opcode, but if one is passed down
         // it will also land here also
+        jvm_StackPeek(&stack, &result);
+        JVM_OBJCOLHOLD((JVMObject*)result->data);
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
       }
@@ -1597,18 +1607,22 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           if (_error) break;
           // fill out exception item to create stack trace
           _error = jvm_PutField(bundle, _jobject, "first", (uint64)__jobject, JVM_STACK_ISOBJECTREF);
+          JVM_OBJCOLRELEASE(__jobject);
           if (_error) break;
           _error = jvm_CreateString(jvm, bundle, (uint8*)methodName, jvm_strlen(methodName), &___jobject);
           if (_error) break;
           _error = jvm_PutField(bundle, __jobject, "methodName", (uintptr)___jobject, JVM_STACK_ISOBJECTREF);
+          JVM_OBJCOLRELEASE(___jobject);
           if (_error) break;
           _error = jvm_CreateString(jvm, bundle, className, jvm_strlen(className), &___jobject);
           if (_error) break;
           _error = jvm_PutField(bundle, __jobject, "className", (uintptr)___jobject, JVM_STACK_ISOBJECTREF);
+          JVM_OBJCOLRELEASE(___jobject);
           if (_error) break;
           _error = jvm_CreateString(jvm, bundle, (uint8*)methodType, jvm_strlen(methodType), &___jobject);
           if (_error) break;
           _error = jvm_PutField(bundle, __jobject, "methodType", (uintptr)___jobject, JVM_STACK_ISOBJECTREF);
+          JVM_OBJCOLRELEASE(___jobject);
           if (_error) break;
           _error = jvm_PutField(bundle, __jobject, "opcodeIndex", x, JVM_STACK_ISINT);
           break;
@@ -1635,6 +1649,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             if (!jvm_IsInstanceOf(bundle, _jobject, a->string)) {
               /// yes, then jump to exception handler
               jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
+              JVM_OBJCOLRELEASE(_jobject);
               x = method->code->eTable[y].pcHandler;
               debugf("jumping to pcHandler:%i\n", x);
               error = JVM_SUCCESS;

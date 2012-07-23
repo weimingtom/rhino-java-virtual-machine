@@ -677,6 +677,7 @@ int jvm_CreateString(JVM *jvm, JVMBundle *bundle, uint8 *string, uint16 szlen, J
   if (error)
     return error;
   error = jvm_PutField(bundle, sobject, "data", (uintptr)pobject, JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF | JVM_STACK_ISBYTE);
+  JVM_OBJCOLRELEASE(sobject);
   if (error)
     return error;
   *out = sobject;
@@ -715,9 +716,10 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   jobject->class = jclass;
   jobject->stackCnt = 0;
   jobject->type = JVM_OBJTYPE_OBJECT;
+  jobject->mutex = 0;
+  JVM_OBJCOLHOLD(jobject);
   // link us into global object chain
   jvm_MutexAquire(&jvm->mutex);
-  jobject->mutex = 0;
   jobject->next = jvm->objects;
   jvm->objects = jobject;
   jvm_MutexRelease(&jvm->mutex);
@@ -765,8 +767,10 @@ int jvm_Collect(JVM *jvm) {
   ra = 0;
   rb = 0;
 
-  jvm->cmark++;
-  cmark = jvm->cmark;
+  // using lower 4-bits for cmark
+  // using upper 4-bits for flags
+  jvm->cmark = (jvm->cmark + 1) & 0xf;
+  cmark = jvm->cmark & 0xf;
   // add all objects to ra
   jvm_MutexAquire(&jvm->mutex);
   for (co = jvm->objects; co != 0; co = co->next) {
@@ -783,7 +787,7 @@ int jvm_Collect(JVM *jvm) {
   while (ra != 0) {
     for (ca = ra; ca != 0; ca = ca->next) {
       // do not do objects already done
-      if (ca->object->cmark == cmark)
+      if (ca->object->cmark & 0xf == cmark)
         continue;
       // create collects from fields pointing to other objects
       debugf("pp:%x\n", cof);
@@ -817,7 +821,7 @@ int jvm_Collect(JVM *jvm) {
         case JVM_OBJTYPE_OARRAY:
           caf = (JVMObject**)ca->object->fields;
           for (x = 0; x < ca->object->fieldCnt; ++x) {
-            if (caf[x]->cmark == cmark)
+            if (caf[x]->cmark & 0xf == cmark)
               continue;
             cb = (JVMCollect*)jvm_malloc(sizeof(JVMCollect));
             cb->object = (JVMObject*)caf[x];
@@ -845,7 +849,10 @@ int jvm_Collect(JVM *jvm) {
   r = 0;
   for (co = jvm->objects; co != 0; co = _co) {
     _co = co->next;
-    if ((co->stackCnt == 0) && (co->cmark != cmark)) {
+    // stackCnt must be zero (object not on any stack or any local slot)
+    // cmark lower 4-bits must not equal current jvm cmark (meaning unreachable as reference from anything)
+    // cmark must not have NOCOLLECT FLAG set (upper 4-bits)
+    if ((co->stackCnt == 0) && (co->cmark & 0xf != cmark) && (!(co->cmark & JVM_OBJECT_CMARK_FLAG_NOCOLLECT))) {
       // free and forget about these
       debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
       jvm_free(co);
@@ -857,7 +864,7 @@ int jvm_Collect(JVM *jvm) {
     }
   }
 
-  // set new chain in old chain's place many of the
+  // set new chain in old chain's place
   // items in the old chain are actually now invalid
   // memory.. so got to make sure to do this
   jvm->objects = r;
