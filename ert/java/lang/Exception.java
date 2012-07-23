@@ -7,6 +7,7 @@ public class Exception implements Throwable {
   private Exception             cause;
   private String                msg;
   private int                   code;
+  private ExceptionStackItem    first;
 
   public Exception(String msg) {
     this.msg = msg;

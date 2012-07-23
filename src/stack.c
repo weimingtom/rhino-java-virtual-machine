@@ -46,6 +46,11 @@ void jvm_StackPush(JVMStack *stack, int64 value, uint32 flags) {
   jvm_DebugStack(stack);
 }
 
+void jvm_StackPeek(JVMStack *stack, JVMLocal *local) {
+  local->flags = stack->flags[stack->pos - 1];
+  local->data = stack->data[stack->pos - 1];
+}
+
 void jvm_StackPop(JVMStack *stack, JVMLocal *local) {
   stack->pos--;
   local->flags = stack->flags[stack->pos];
