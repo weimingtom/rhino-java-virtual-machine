@@ -1463,6 +1463,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          if (opcode != 0xb8) {
           /// pop object reference from stack
           jvm_StackPop(&stack, &result);
+          if (!result.data) {
+            error = JVM_ERROR_NULLOBJREF;
+            break;
+          }
           if (!(result.flags & JVM_STACK_ISOBJECTREF)) {
             error = JVM_ERROR_NOTOBJREF;
             debugf("object from stack is not object reference!");
@@ -1571,26 +1575,44 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// these are run-time exceptions
       if (error != JVM_ERROR_EXCEPTION) {
         debugf("creating\n");
+        // if we arrived here it is because the error variable was set to a 
+        // non-zero negative value which represents a certain exceptions and
+        // errors
+        // -- kmcguire
+        //
+        // at the moment i have not instanced the appropriate class object for
+        // each error or exception; instead i am creating a general exception
+        // with a custom field 'code' which is set to this value
+        // -- kmcguire
+        //
+        // it seems like this should generate smaller code since it is easier to
+        // set a simple integer value and then generating method call code to
+        // create an object at each point above in the execution path
+        // -- kmcguire
+        //
+        // TODO: actually create the appropriate error
         _error = jvm_CreateObject(jvm, bundle, "java/lang/Exception", &_jobject);
-        // this block lets me create a specific exception from the error code
-        // and it keeps me from having to implement complex blocks in each
-        // opcode that needs to throw a runtime exception, once we create
-        // the exception we treat it like a regular thrown exception and it
-        // can propagate down the stack
         if (_error < 0) {
           debugf("Could not create object java/lang/Exception!\n");
           jvm_exit(_error);
         }
+        // here i am setting the code field to our internal error value which
+        // is incorrect since we should instead instance say a NullPointerException
+        // instead of setting 'code' to the value of -6
         _error = jvm_PutField(bundle, _jobject, "code", error, JVM_STACK_ISINT);
       } else {
-        // this is where a regular exception is caught, normally
-        // from the athrow opcode, but if one is passed down
-        // it will also land here also
+        // if athrow is executed above we will end up here with a already instanced
+        // exception or error object, also if an exception is unhandled from a 
+        // previous method call it will also land here
         jvm_StackPeek(&stack, &result);
-        JVM_OBJCOLHOLD((JVMObject*)result->data);
+        JVM_OBJCOLHOLD((JVMObject*)result.data);
         jvm_StackPop(&stack, &result);
         _jobject = (JVMObject*)result.data;
       }
+      // this is part of the stack trace elements; each ExceptionStackItem
+      // details a specific stack trace element so if the stack trace contains
+      // 5 elements then you will have 5 ExceptionStackItem object chained
+      // together
       _error = jvm_CreateObject(jvm, bundle, "java/lang/ExceptionStackItem", &__jobject);
       if (_error) {
         debugf("Could not create ExceptionStackItem\n");
