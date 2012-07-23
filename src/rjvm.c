@@ -777,7 +777,7 @@ int jvm_Collect(JVM *jvm) {
   // add all objects to ra
   jvm_MutexAquire(&jvm->mutex);
   for (co = jvm->objects; co != 0; co = co->next) {
-    if (co->stackCnt > 0) {
+    if ((co->stackCnt > 0) || (co->cmark & JVM_OBJECT_CMARK_FLAG_NOCOLLECT)) {
       ca = (JVMCollect*)jvm_malloc(sizeof(JVMCollect));
       ca->object = co;
       ca->next = ra;
