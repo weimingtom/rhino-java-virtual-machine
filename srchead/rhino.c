@@ -39,7 +39,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
       result->flags = 0;
       break;
     // LoadResource
-    case 0x2fc:
+    case 0x4c8:
       sobject = (JVMObject*)locals[0].data;
       debugf("sobject %x\n", sobject);
       if (!sobject)
