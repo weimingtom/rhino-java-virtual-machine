@@ -1,1 +1,0 @@
-./runReadElf32.sh
