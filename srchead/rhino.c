@@ -38,7 +38,7 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
       result->data = 0;
       result->flags = 0;
       break;
-    // ReadFile
+    // LoadResource
     case 0x2fc:
       sobject = (JVMObject*)locals[0].data;
       debugf("sobject %x\n", sobject);
@@ -161,13 +161,9 @@ int main(int argc, char *argv[])
   jvm_m_give(p, 1024 * 1024 * 8);
   #endif
 
-  debugf("**\n");
-  buf = jvm_ReadWholeFile("./Core/Core.class", &size);
-  debugf("**\n");
+  buf = jvm_ReadWholeFile("./ert/Core.class", &size);
   msWrap(&m, buf, size);
-  debugf("**\n");
   jclass = jvm_LoadClass(&m);
-  debugf("**\n");
   jclass->flags = JVM_CLASS_NATIVE;
   jclass->nhand = jvm_core_core_handler;
   jvm_free(buf);

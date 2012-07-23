@@ -33,6 +33,31 @@ This provides a good standard for testing any changes to the malloc
 implementation. Since any bugs present when this is used will simply
 manifest as other problems and become highly difficult to track.
 
+== QUICK DEMO ==
+To perform a quick demo and provide a starting point execute these
+commands while in the root project directory.
+
+make test1
+./rhino ./ert/java/lang/Object.class 
+        ./ert/java/lang/ExceptionStackItem.class 
+        ./ert/java/lang/Exception.class 
+        ./ert/java/lang/String.class 
+        ./ert/java/lang/Array.class 
+        ./tests/test1/Main.class :Main
+
+You should place everything for the './rhino' command on a single line. 
+Also take note how all classes must be specified. The 'rhino' binary
+will not perform a disk search to find missing classes and expects
+you to specify all needed classes. This may seem non-standard and it is,
+but if you wished you could implement automatic loading and searching
+quick easily I just have not had the time to do so yet. And, if you do
+you need an option to specify the class path. 
+
+Th ERT directory stands for embedded run-time and is seperate from the
+standard such as openJDK. I wish to one day be able to support the 
+openJDK, but for now I am opted to work on a much smaller and specialed
+subset just for small embedded platforms.
+
 == SOUCE AND HEADER FILES OVERVIEW ==
 
 === SRC AND INC DIRECTORY ===

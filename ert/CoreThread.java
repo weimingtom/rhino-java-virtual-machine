@@ -1,12 +1,12 @@
 package Core;
 
-public class Thread {
+public class CoreThread {
   private Object        targ;
   private long          tid;
 
-  public Thread() throws Exception {
+  public CoreThread() throws Exception {
     String                      s;
-    s = "WWW";
+    s = "WWE";
     throw new Exception(s);
   }
 }
