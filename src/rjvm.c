@@ -771,6 +771,9 @@ int jvm_Collect(JVM *jvm) {
   // using upper 4-bits for flags
   jvm->cmark = (jvm->cmark + 1) & 0xf;
   cmark = jvm->cmark & 0xf;
+  
+  debugf("garbage collector cmark is %x\n", cmark);
+  
   // add all objects to ra
   jvm_MutexAquire(&jvm->mutex);
   for (co = jvm->objects; co != 0; co = co->next) {
@@ -852,7 +855,7 @@ int jvm_Collect(JVM *jvm) {
     // stackCnt must be zero (object not on any stack or any local slot)
     // cmark lower 4-bits must not equal current jvm cmark (meaning unreachable as reference from anything)
     // cmark must not have NOCOLLECT FLAG set (upper 4-bits)
-    if ((co->stackCnt == 0) && (co->cmark & 0xf != cmark) && (!(co->cmark & JVM_OBJECT_CMARK_FLAG_NOCOLLECT))) {
+    if ((co->stackCnt == 0) && ((co->cmark & 0xf) != cmark) && (!(co->cmark & JVM_OBJECT_CMARK_FLAG_NOCOLLECT))) {
       // free and forget about these
       debugf("FREE type:%x obj:%x cmark:%u stackCnt:%u class:%s\n", co->type, co, co->cmark, co->stackCnt, jvm_GetClassNameFromClass(co->class));
       jvm_free(co);
