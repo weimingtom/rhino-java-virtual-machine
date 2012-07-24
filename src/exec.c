@@ -71,7 +71,7 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
         _jobject->fields = (uint64*)jvm_malloc(sizeof(uint32) * cnt);
         break;
       case JVM_ATYPE_CHAR:
-        _jobject->fields = (uint64*)jvm_malloc(sizeof(uint8) * cnt);
+        _jobject->fields = (uint64*)jvm_malloc(sizeof(uint16) * cnt);
         break;
       case JVM_ATYPE_BYTE:
         _jobject->fields = (uint64*)jvm_malloc(sizeof(uint8) * cnt);
@@ -847,7 +847,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         switch(opcode) {
           /// caload: load char from an array
           case 0x34:
-            jvm_StackPush(&stack, ((int8*)_jobject->fields)[w], JVM_STACK_ISCHAR);
+            jvm_StackPush(&stack, ((uint16*)_jobject->fields)[w], JVM_STACK_ISCHAR);
             break;
           /// daload: load double from an array
           case 0x31:
@@ -943,7 +943,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             break;
           /// castore: store char into an array
           case 0x55:
-            ((int64*)_jobject->fields)[w] = y;
+            ((uint16*)_jobject->fields)[w] = y;
             break;
           /// iastore: store an int into an array
           case 0x4f:
