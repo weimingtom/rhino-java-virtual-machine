@@ -24,6 +24,7 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   JVMConstPoolString            *pist;
   JVMConstPoolInteger           *piit;
   JVMConstPoolLong              *pllt;
+  JVMConstPoolIntMethRef        *imr;
   JVMClass			*class;
   uint8                         *string;
   
@@ -92,6 +93,13 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	piu8->hdr.type = TAG_UTF8;
 	debugf("TAG_UTF8: size:%u string:%s\n", piu8->size, piu8->string);
 	break;
+      case TAG_INTMETHREF:
+  imr = (JVMConstPoolIntMethRef*)jvm_malloc(sizeof(JVMConstPoolIntMethRef));
+  pool[x] = (JVMConstPoolItem*)imr;
+  imr->classIndex = msRead16(m);
+  imr->nameAndTypeIndex = msRead16(m);
+  imr->hdr.type = TAG_INTMETHREF;
+  break;
       case TAG_NAMEANDTYPE:
 	pint = (JVMConstPoolNameAndType*)jvm_malloc(sizeof(JVMConstPoolNameAndType));
 	pool[x] = (JVMConstPoolItem*)pint;
@@ -144,9 +152,16 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->fields[x].descIndex = msRead16(m);
     class->fields[x].attrCount = msRead16(m);
     if (class->fields[x].attrCount > 0) {
-        //debugf("class field attribute support not implemented!\n");
-        jvm_exit(-1);
-    }
+        class->fields[x].attrs = (JVMAttribute*)jvm_malloc(sizeof(JVMAttribute) * class->fields[x].attrCount);
+        for (y = 0; y < class->fields[x].attrCount; ++y) {
+          class->fields[x].attrs[y].nameIndex = msRead16(m);
+          class->fields[x].attrs[y].length = msRead32(m);
+          class->fields[x].attrs[y].info = (uint8*)jvm_malloc(sizeof(uint8) * class->fields[x].attrs[y].length);
+          msRead(m, class->fields[x].attrs[y].length, class->fields[x].attrs[y].info);
+          debugf("read field attribute of length %u\n", class->fields[x].attrs[y].length);
+        }
+    } else
+      class->fields[x].attrs = 0;
     //debugf("accessFlags:%u nameIndex:%u descIndex:%u attrCount:%u\n", class->fields[x].accessFlags, class->fields[x].nameIndex, class->fields[x].descIndex,class->fields[x].attrCount);
   }
   /*
@@ -253,10 +268,15 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
     
     a = jbclass->jclass->thisClass;
     b = (JVMConstPoolClassInfo*)jbclass->jclass->pool[a - 1];
+    debugf("a:%x\n", b);
     c = (JVMConstPoolUtf8*)jbclass->jclass->pool[b->nameIndex - 1];
+    debugf("right before..\n");
     debugf("looking for class [%s]=?[%s]\n", className, c->string);
-    if (jvm_strcmp(c->string, className) == 0)
+    if (jvm_strcmp(c->string, className) == 0) {
+      debugf("or here..\n");
       return jbclass->jclass;
+    }
+    debugf("here..\n");
   }
   /*
     This is where you want to do code to search externally to the
@@ -730,7 +750,13 @@ int jvm_CreateObject(JVM *jvm, JVMBundle *bundle, const char *className, JVMObje
   locals[0].flags = JVM_STACK_ISOBJECTREF;
   // call default constructor (no arguments)
   debugf("##>%x\n", jobject);
-  return jvm_ExecuteObjectMethod(jvm, bundle, jclass, "<init>", "()V", &locals[0], 1, &result);
+  // why the hell am i calling this here? am i supposed to for some
+  // weird reason that i forgot about, a java.lang.Character was created
+  // with new opcode.. then it calls the constructor later.. okay if stuff
+  // goes crazy this is where it happened
+  // --kmcguire 7/23/12
+  //return jvm_ExecuteObjectMethod(jvm, bundle, jclass, "<init>", "()V", &locals[0], 1, &result);
+  return JVM_SUCCESS;
 }
 
 void jvm_AddClassToBundle(JVMBundle *jbundle, JVMClass *jclass) {
