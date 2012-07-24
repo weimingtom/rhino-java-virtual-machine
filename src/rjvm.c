@@ -121,6 +121,14 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
 	jvm_exit(-1);
     }
   }
+  
+  // some classes have no static fields and we build these
+  // static fields in a seperate function, but if no static
+  // fields then these struct members will be left uninitialized
+  // so we fix that here
+  class->sfieldCnt = 0;
+  class->sfields = 0;
+  
   /*
     ====================
     LOAD SMALL PARAMETERS
@@ -136,9 +144,12 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
   */
   class->ifaceCnt = msRead16(m);
   jvm_printf("class->ifaceCnt:%u\n", class->ifaceCnt);
-  class->interfaces = (uint16*)jvm_malloc(class->ifaceCnt);
-  for (x = 0; x < class->ifaceCnt; ++x)
-    class->interfaces[x] = msRead16(m);
+  if (class->ifaceCnt > 0) {
+    class->interfaces = (uint16*)jvm_malloc(sizeof(uint16) * class->ifaceCnt);
+    for (x = 0; x < class->ifaceCnt; ++x)
+      class->interfaces[x] = msRead16(m);
+  } else
+    class->interfaces = 0;
   /*
     ======================
     LOAD FIELDS
@@ -283,6 +294,7 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
     bundle, and if needed load the missing class into memory.
   */
   debugf("class [%s] not found in bundle!\n", className);
+  exit(-3);
   return 0;
 }
 
