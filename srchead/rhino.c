@@ -66,8 +66,8 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
     case 0x19a:
       jvm_exit(-1);
       break;
-    // PrintString
-    case 0x484:
+    // Print
+    case 0x20d:
       sobject = (JVMObject*)locals[0].data;
       debugf("sobject %x\n", sobject);
       if (!sobject)
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
   jvm_m_give(p, 1024 * 1024 * 8);
   #endif
 
-  buf = jvm_ReadWholeFile("./ert/Core.class", &size);
+  buf = jvm_ReadWholeFile("./ert/sys/Core.class", &size);
   msWrap(&m, buf, size);
   jclass = jvm_LoadClass(&m);
   jclass->flags = JVM_CLASS_NATIVE;
