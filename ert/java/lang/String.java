@@ -9,6 +9,12 @@ public class String {
   public String(byte[] data) {
     this.data = data;
   }
+  
+  public String(char c) {
+    data = new byte[2];
+    data[0] = (byte)c;
+    data[1] = 0;
+  }
 
   public int length() {
     return data.length;

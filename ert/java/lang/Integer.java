@@ -1,11 +1,53 @@
 package java.lang;
 
-public class Integer {
-  public int                   v;
-  public Integer() { }
+public class Integer extends Number implements Comparable {
+  protected int                   v;
+  public Integer() { 
+  }
   public Integer(int i) {
     this.v = i;
   }
+  
+  static Integer decode(String nm) {
+    return new Integer(0);
+  }
+  
+  static Integer getInteger(String nm) {
+    return null;
+  }
+  
+  static Integer getInteger(String nm, int val) {
+    return null;
+  }
+  
+  static Integer getInteger(String num, Integer val) {
+    return null;
+  }
+  
+  public byte byteValue() {
+    return (byte)v;
+  }
+  
+  public double doubleValue() {
+    return (double)v;
+  }
+  
+  public float floatValue() {
+    return (float)v;
+  }
+  
+  public int intValue() {
+    return (int)v;
+  }
+  
+  public long longValue() {
+    return (long)v;
+  }
+  
+  public short shortValue() {
+    return (short)v;
+  }
+  
   public static Integer valueOf(int i) {
     Integer     ni;
     ni = new Integer(i);
@@ -14,6 +56,24 @@ public class Integer {
 
   public String toString() {
     return Integer.toString(v);
+  }
+  
+  public int compareTo(Integer anotherInteger) {
+    if (v == anotherInteger.v)
+      return 0;
+    if (v < anotherInteger.v)
+      return -1;
+    return 1;
+  }
+  
+  public int compareTo(Object o) throws ClassCastException {
+    if (!(o instanceof Integer))
+      throw new ClassCastException();
+    return compareTo((Integer)o);
+  }
+  
+  public int hashCode() {
+    return v;
   }
 
   public static String toString(int i) {
@@ -59,7 +119,11 @@ public class Integer {
       _b[i] = b[i];
     return new String(_b);
   }
-
+  
+  public static int parseInt(String s, int radix) {
+    return 0;
+  }
+  
   public static int parseInt(String s) {
     byte[]      d;
     int         sign;

@@ -1,8 +1,5 @@
 package java.lang;
 
-interface Throwable {
-}
-
 public class Exception implements Throwable {
   private Exception             cause;
   private String                msg;
