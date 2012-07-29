@@ -52,6 +52,14 @@ void *jvm_m_malloc(size) {
   JVM_M_PT              *pt, *_pt;
   int                   free;
   int                   rtotal;
+  void                  *ret;
+  
+  if (!size)
+    return 0;
+  
+  #ifdef INTERNALMALLOC_BUFCHK
+  size += 4;
+  #endif
   
   ms = &g_jvm_m_ms;
   //debugf("malloc ms->first=%x\n", ms->first);
@@ -63,12 +71,36 @@ void *jvm_m_malloc(size) {
       // lock the chunk
       jvm_MutexAquire(&ch->mutex);
       //debugf("mutex aquired\n");
-      rtotal = -4;
+      #ifdef INTERNALMALLOC_BUFCHK
+      // corruption checker
       for (
               // grab first part for intialization
               pt = (JVM_M_PT*)((uintptr)ch + sizeof(JVM_M_CH));
               // make sure we have not gone past end of chunk
               ((uintptr)pt - (uintptr)ch) < ch->size;
+              // get next part
+              pt = (JVM_M_PT*)((uintptr)pt + JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT))
+          )
+      {
+        rtotal = JVM_M_SIZE(pt->fas);
+        ret = (void*)((uintptr)pt + sizeof(JVM_M_PT));
+        
+        if (!JVM_M_ISUSED(pt->fas))
+          continue;
+        
+        if (((uint32*)&(((uint8*)ret)[rtotal - 4]))[0] != 0x78563412) {
+          debugf("heap corruption checker failed on %llx with sig:%x size:%u\n", ret, ((uint32*)&(((uint8*)ret)[rtotal - 4]))[0], rtotal);
+          exit(-3);
+        }
+      }
+      #endif
+      
+      rtotal = -sizeof(JVM_M_PT);
+      for (
+              // grab first part for intialization
+              pt = (JVM_M_PT*)((uintptr)ch + sizeof(JVM_M_CH));
+              // make sure we have not gone past end of chunk
+              (((uintptr)pt - (uintptr)ch)) < ch->size;
               // get next part
               pt = (JVM_M_PT*)((uintptr)pt + JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT))
           )
@@ -79,18 +111,18 @@ void *jvm_m_malloc(size) {
               {
                 rtotal = (int)-sizeof(JVM_M_PT);
                 _pt = 0;
-			  } else {
+              } else {
                 rtotal += JVM_M_SIZE(pt->fas) + sizeof(JVM_M_PT);
                 // if 'pt' is zero then set it if not leave it
                 if (!_pt)
-					_pt = pt;
-			  }
+                  _pt = pt;
+              }
               //debugf("ch:%x _pt:%x pt:%x pt->fas:%x size:%x\n", ch, _pt, pt, pt->fas, size);
               //sleep(1);
               // do we have enough?
               if (rtotal >= size) {
                 //  do we have enough at the end to create a new part?
-                if (rtotal - size > (2 * sizeof(JVM_M_PT))) {
+                if ((rtotal - size) > (2 * sizeof(JVM_M_PT))) {
                   // create two blocks one free one used                  
                   _pt->fas = JVM_M_USED | size;
                   pt = _pt;
@@ -101,16 +133,30 @@ void *jvm_m_malloc(size) {
                   debugf("ret[split]: pt:%llx pt->fas:%x _pt:%x _pt->fas:%x\n", pt, pt->fas, _pt, _pt->fas);
                   //ch->free -= sizeof(JVM_M_PT) + size;
                   jvm_MutexRelease(&ch->mutex);
-                  return (void*)((uintptr)pt + sizeof(JVM_M_PT));
+                  ret = (void*)((uintptr)pt + sizeof(JVM_M_PT));
+                  #ifdef INTERNALMALLOC_BUFCHK
+                  ((uint8*)ret)[size-4] = 0x12;
+                  ((uint8*)ret)[size-3] = 0x34;
+                  ((uint8*)ret)[size-2] = 0x56;
+                  ((uint8*)ret)[size-1] = 0x78;
+                  #endif
+                  return ret;
                 } else {
-			      debugf("2\n");
+                  //debugf("2\n");
                   // do not bother splitting use as whole
-                  //debugf("ret[whole] rtotal:%x\n", rtotal);
+                  debugf("ret[whole] rtotal:%x\n", rtotal);
                   _pt->fas = JVM_M_USED | rtotal;
                   //ch->free -= sizeof(JVM_M_PT) + rtotal;
                   //debugf("ret: pt[whole]:%x\n", pt);
                   jvm_MutexRelease(&ch->mutex);
-                  return (void*)((uintptr)_pt + sizeof(JVM_M_PT));
+                  ret = (void*)((uintptr)_pt + sizeof(JVM_M_PT));
+                  #ifdef INTERNALMALLOC_BUFCHK
+                  ((uint8*)ret)[rtotal-4] = 0x12;
+                  ((uint8*)ret)[rtotal-3] = 0x34;
+                  ((uint8*)ret)[rtotal-2] = 0x56;
+                  ((uint8*)ret)[rtotal-1] = 0x78;
+                  #endif
+                  return ret;
                 }
               }
       }
