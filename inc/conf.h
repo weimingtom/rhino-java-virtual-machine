@@ -6,4 +6,6 @@
 */
 
 #define INTERNALMALLOC
+// this checks for buffer overflows or underuns
+#define INTERNALMALLOC_BUFCHK
 #endif
