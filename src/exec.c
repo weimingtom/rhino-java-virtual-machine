@@ -177,27 +177,37 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   jvm_StackInit(&stack, method->code->maxStack + 4);
   error = 0;
   
+  // if locals passed is less then maxLocals then issue a calling error
+  // if locals passed is greater than maxLocals then issue a calling error
+  if (method->code->maxLocals != localCnt)
+    return JVM_ERROR_WRONGARGCNT;
+  
   debugf("method has code(%lx) of length %u\n", code, codesz);
   // maxLocals specifie the number of locals the method expects
-  locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
-  if (!locals)
-    return JVM_ERROR_OUTOFMEMORY;
-  /// copy provided arguments into locals
-  debugf("----->maxLocals:%x\n", method->code->maxLocals);
-  // more max locals can be specified than actual
-  // number of locals passed in
-  for (x = 0; x < method->code->maxLocals; ++x) {
-    locals[x].data = 0;
-    locals[x].flags = 0;
-  }
-  debugf("localCnt:%u\n", localCnt);
-  for (x = 0; x < localCnt; ++x) {
-    locals[x].data = _locals[x].data;
-    locals[x].flags = _locals[x].flags;
-    debugf("$$data:%u flags:%u\n", _locals[x].data, _locals[x].flags);
-    if (locals[x].flags & JVM_STACK_ISOBJECTREF)
-      if (locals[x].data)
-        ((JVMObject*)locals[x].data)->stackCnt++;
+  if (method->code->maxLocals > 0) {
+    locals = (JVMLocal*)jvm_malloc(sizeof(JVMLocal) * method->code->maxLocals);
+    if (!locals)
+      return JVM_ERROR_OUTOFMEMORY;
+    /// copy provided arguments into locals
+    debugf("----->maxLocals:%x\n", method->code->maxLocals);
+    // more max locals can be specified than actual
+    // number of locals passed in
+    for (x = 0; x < method->code->maxLocals; ++x) {
+      locals[x].data = 0;
+      locals[x].flags = 0;
+    }
+
+    debugf("localCnt:%u\n", localCnt);
+    for (x = 0; x < localCnt; ++x) {
+      locals[x].data = _locals[x].data;
+      locals[x].flags = _locals[x].flags;
+      debugf("$$data:%u flags:%u\n", _locals[x].data, _locals[x].flags);
+      if (locals[x].flags & JVM_STACK_ISOBJECTREF)
+        if (locals[x].data)
+          ((JVMObject*)locals[x].data)->stackCnt++;
+    }
+  } else {
+    locals = 0;
   }
 
   className = jvm_GetClassNameFromClass(jclass);
@@ -286,6 +296,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           case TAG_FLOAT:
             debugf("TAG_FLOAT not implemented!\n");
             jvm_exit(-9);
+            break;
+          default:
+            debugf("TAG type %u not implemented!\n", jclass->pool[y - 1]->type);
+            exit(-3);
             break;
         }
         if (opcode == 0x12)
@@ -1139,25 +1153,38 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
         f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
+        
+        debugf("typeIndex:%x\n", d->descIndex);
+        debugf("type:%s\n", ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string + 2);
+        
+        _jclass = jvm_FindClassInBundle(bundle, ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string + 1);
+        if (!_jclass) {
+          error = JVM_ERROR_CLASSNOTFOUND;
+          break;
+        }
+
         a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
 
-        //
         error = JVM_ERROR_MISSINGFIELD;
-        for (w = 0; w < jclass->sfieldCnt; ++w) {
-          debugf("looking for field %s have %s\n", a->string, jclass->sfields[w].name);
-          if (jvm_strcmp(jclass->sfields[w].name, a->string) == 0) {
+        for (w = 0; w < _jclass->sfieldCnt; ++w) {
+          debugf("now herez %llx sfieldCnt:%u\n", _jclass->sfields, _jclass->fieldCnt);
+          debugf("looking for field %s have %s\n", a->string, _jclass->sfields[w].name);
+          debugf("but no here\n");
+          if (jvm_strcmp(_jclass->sfields[w].name, a->string) == 0) {
             // push onto the stack
-            debugf("jclass->sfields[w].value:%li\n", jclass->sfields[w].value);
-            jvm_StackPush(&stack, jclass->sfields[w].value, jclass->sfields[w].aflags);
+            debugf("jclass->sfields[w].value:%li\n", _jclass->sfields[w].value);
+            jvm_StackPush(&stack, _jclass->sfields[w].value, _jclass->sfields[w].aflags);
             error = JVM_SUCCESS;
             break;
           }
         }
-        if (error > 0) {
-          debugf("field not found\n");
-          jvm_exit(-7);
-          break;
-        }
+        exit(-3);
+        // i do not think this needs to be here.. --kmcguire
+        //if (error > 0) {
+        //  debugf("field not found\n");
+        //  jvm_exit(-7);
+        //  break;
+        //}
         x += 3;
         break;
       /// getfield
@@ -1401,6 +1428,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // x +=3 ;
          // break;
          //}
+         debugf("mclass:%s\n", mclass);
 
          d = (JVMConstPoolNameAndType*)jclass->pool[b->descIndex - 1];
          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
@@ -1423,9 +1451,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
          /// look for method in our class then walk super classes
          /// and see if we can find it
+         debugf("----------\n");
          while ((_method = jvm_FindMethodInClass(_jclass, mmethod, mtype)) == 0) {
+           debugf("superClass:%u\n", _jclass->superClass);
+           if (!_jclass->superClass) {
+             error = JVM_ERROR_METHODNOTFOUND;
+             debugf("could not find method %s in %s class or in supers\n", mmethod, mclass);
+             exit(-3);
+             break;
+           }
            c = (JVMConstPoolClassInfo*)_jclass->pool[_jclass->superClass - 1];
+           debugf("c:%x\n", c);
            a = (JVMConstPoolUtf8*)_jclass->pool[c->nameIndex - 1];
+           debugf("a->string:%s\n", a->string);
            _jclass = jvm_FindClassInBundle(bundle, a->string);
            if (!_jclass)
            {
@@ -1458,11 +1496,15 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
            _locals[(argcnt - y - 1) + w].data = result.data;
            _locals[(argcnt - y - 1) + w].flags = result.flags;
          }
+         
+         debugf("finish copying locals if any\n");
 
          // if not static invocation then we need the objref
          if (opcode != 0xb8) {
           /// pop object reference from stack
+          debugf("here??\n");
           jvm_StackPop(&stack, &result);
+          debugf("here??\n");
           if (!result.data) {
             error = JVM_ERROR_NULLOBJREF;
             break;
@@ -1495,6 +1537,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
            //eresult = jvm->nprocs[w](jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result); 
          } else {
            debugf("-----java-call----\n");
+           debugf("right before call\n");
            eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
          }
          jvm_free(_locals);
