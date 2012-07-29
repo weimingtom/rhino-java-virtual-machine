@@ -1163,18 +1163,24 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1] << 8 | code[x+2];
 
         f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
+        c = (JVMConstPoolClassInfo*)jclass->pool[f->classIndex - 1];
+        // CLASS
+        mclass = ((JVMConstPoolUtf8*)jclass->pool[c->nameIndex - 1])->string;
         d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
+        // TYPE
         tmp = ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string;
         
+        debugf("mclass:%s\n", mclass);
         debugf("typeIndex:%x\n", d->descIndex);
         debugf("type:%s\n", tmp);
         
-        _jclass = jvm_FindClassInBundle(bundle, ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string);
+        _jclass = jvm_FindClassInBundle(bundle, mclass);
         if (!_jclass) {
           error = JVM_ERROR_CLASSNOTFOUND;
           break;
         }
 
+        // FIELD NAME
         a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
         debugf("fieldName:%s\n", a->string);
 
@@ -1191,7 +1197,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             break;
           }
         }
-        exit(-3);
         x += 3;
         break;
       /// getfield
