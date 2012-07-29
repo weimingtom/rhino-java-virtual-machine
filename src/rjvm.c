@@ -190,8 +190,8 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->methods[x].descIndex = msRead16(m);
     class->methods[x].attrCount = msRead16(m);
 
-    //debugf("--------------->method:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].nameIndex - 1])->string);
-    //debugf("--------------->desc:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].descIndex - 1])->string);
+    debugf("--------------->method:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].nameIndex - 1])->string);
+    debugf("--------------->desc:%s\n", ((JVMConstPoolUtf8*)class->pool[class->methods[x].descIndex - 1])->string);
     
     class->methods[x].attrs = (JVMAttribute*)jvm_malloc(sizeof(JVMAttribute) *
       class->methods[x].attrCount);
@@ -200,8 +200,8 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
       class->methods[x].attrs[y].length = msRead32(m);
 
       string = ((JVMConstPoolUtf8*)class->pool[class->methods[x].attrs[y].nameIndex - 1])->string;
-      //debugf("name:%s\n", string);
-      //debugf("attrlen:%u\n", class->methods[x].attrs[y].length);
+      debugf("name:%s\n", string);
+      debugf("attrlen:%u\n", class->methods[x].attrs[y].length);
       if (jvm_strcmp(string, "Code") == 0) {
         /// special attribute we need to fully parse out
         class->methods[x].code = (JVMCodeAttribute*)jvm_malloc(sizeof(JVMCodeAttribute));
@@ -265,6 +265,13 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
     class->attrs[x].info = (uint8*)jvm_malloc(class->attrs[x].length);
     msRead(m, class->attrs[x].length, class->attrs[x].info);
   }
+  
+  /*
+    ======================
+    MAKE STATIC FIELDS
+    ======================
+  */
+  
   return class;
 }
 
@@ -274,6 +281,12 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
   uint32                        a;
   JVMConstPoolClassInfo         *b;
   JVMConstPoolUtf8              *c;
+  char                          buf[256];
+  
+  // really ugly hack around --kmcguire
+  for (a = 0; (className[a] != 0) && (className[a] != ';'); ++a)
+    buf[a] = className[a];
+  buf[a] = 0;
   
   for (jbclass = bundle->first; jbclass != 0; jbclass = jbclass->next) {
     
@@ -283,7 +296,7 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
     c = (JVMConstPoolUtf8*)jbclass->jclass->pool[b->nameIndex - 1];
     debugf("right before..\n");
     debugf("looking for class [%s]=?[%s]\n", className, c->string);
-    if (jvm_strcmp(c->string, className) == 0) {
+    if (jvm_strcmp(c->string, &buf[0]) == 0) {
       debugf("or here..\n");
       return jbclass->jclass;
     }
@@ -566,7 +579,7 @@ int jvm_MakeStaticFieldsOnBundle(JVM *jvm, JVMBundle *bundle) {
   debugf("@@>nono\n");
   for (bc = bundle->first; bc != 0; bc = bc->next) {
     debugf("@@>yesyes1:%x %x\n", bc, bc->jclass);
-    //jvm_MakeStaticFields(jvm, bundle, bc->jclass);
+    jvm_MakeStaticFields(jvm, bundle, bc->jclass);
     debugf("@@>yesyes2\n");
   }
   debugf("@@>nono\n");
