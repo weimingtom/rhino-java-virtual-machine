@@ -41,6 +41,7 @@ struct _JVMMemoryStream;
 
 #define TAG_METHODREF                   10
 #define TAG_CLASSINFO                   7
+#define TAG_INTMETHREF                  11
 #define TAG_NAMEANDTYPE                 12
 #define TAG_UTF8                        1
 #define TAG_FIELDREF                    9
@@ -68,6 +69,7 @@ struct _JVMMemoryStream;
 #define JVM_ERROR_FIELDTYPEDIFFERS      -15
 #define JVM_ERROR_MISSINGFIELD          -16
 #define JVM_ERROR_INVALIDARG            -17
+#define JVM_ERROR_WRONGARGCNT           -18
 
 /*
   I have yet to use the other flags. Currently,
@@ -168,18 +170,25 @@ typedef struct _JVMConstPoolFieldRef {
   uint32                nameAndTypeIndex;
 } JVMConstPoolFieldRef;
 
-typedef struct _JVMClassField {
-  uint16                accessFlags;
-  uint16                nameIndex;
-  uint16                descIndex;
-  uint16                attrCount;
-} JVMClassField;
+typedef struct _JVMConstPoolIntMethRef {
+  JVMConstPoolItem      hdr;
+  uint16                classIndex;
+  uint16                nameAndTypeIndex;
+} JVMConstPoolIntMethRef;
 
 typedef struct _JVMAttribute {
   uint16                nameIndex;
   uint32                length;
   uint8                 *info;
 } JVMAttribute;
+
+typedef struct _JVMClassField {
+  uint16                accessFlags;
+  uint16                nameIndex;
+  uint16                descIndex;
+  uint16                attrCount;
+  JVMAttribute          *attrs;
+} JVMClassField;
 
 typedef struct _JVMExceptionTable {
   uint16                pcStart;
