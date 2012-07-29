@@ -3,25 +3,17 @@ default: ./src/*.c ./inc/*.h
 malloctestproxy: ./src/*.c ./inc/*.h
 	gcc -I./inc ./src/*.c ./srchead/malloctestproxy.c -o malloctestproxy
 
-ert.done: ./ert/*.java ./ert/java/lang/*.java
-	javac ./ert/*.java
-	javac ./ert/java/lang/*.java
+ert.done: ./ert/sys/*.java ./ert/java/lang/*.java
+	javac ./ert/sys/*.java -classpath ./ert/
+	javac ./ert/java/lang/*.java -classpath ./ert/
 	echo 1 > ert.done
 
-test1: ert.done default
+test1: ert.done
 	javac ./tests/test1/*.java -classpath ./ert/
 
-java: makejavalang makecore maketest makeutil
-
-maketest: ./Test.java
+maketest: ./Test.java java
 	javac ./Test.java
-makejavalang: ./java/lang/*.java
-	javac $?
-makecore: ./Core/*.java
-	javac $?
-makeutil: ./Util/*.java
-	javac $?
-
+	
 clean:
 	rm ./java/lang/*.class
 	rm ./Core/*.class

@@ -1,6 +1,4 @@
-/*
-  Operating System Services
-*/
+package sys;
 
 public class Core {
   public native static String[] EnumClasses();

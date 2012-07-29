@@ -1,19 +1,40 @@
 package java.lang;
 
 public class String {
-  private byte[]        data;
+  private char[]        data;
 
   public String() {
   }
 
-  public String(byte[] data) {
+  public String(byte[] _data) {
+    int     x;
+    int     cnt;
+    
+    // if they give us half a character just ignore it
+    // --kmcguire (not sure if this is correct)
+    cnt = _data.length >> 1;
+    
+    data = new char[cnt];
+    
+    for (x = 0; x < cnt; ++x) {
+      data[x] = (char)((_data[x*2+0] << 8) | _data[x*2+1]);
+    }
+    
     this.data = data;
   }
   
   public String(char c) {
-    data = new byte[2];
-    data[0] = (byte)c;
-    data[1] = 0;
+    data = new char[1];
+    data[0] = c;
+  }
+  
+  public String(char[] s) {
+    int       x;
+    
+    data = new char[s.length];
+    for (x = 0; x < s.length; ++x) {
+      data[x] = s[x];
+    }
   }
 
   public int length() {
@@ -27,17 +48,33 @@ public class String {
   }
 
   public byte[] getBytes() {
-    return data;
+    byte[]    _data;
+    int       x;
+    
+    _data = new byte[data.length * 2];
+    
+    for (x = 0; x < data.length; ++x) {
+      _data[x * 2 + 0] = (byte)((data[x] >> 8) & 0xff);
+      _data[x * 2 + 1] = (byte)(data[x] & 0xff);
+    }
+    
+    return _data;
   }
-
-  public static int test(int a, int b) {
-    return b;
+  
+  public char[] toCharArray() {
+    char[]    _data;
+    int       x;
+    
+    _data = new char[data.length];
+    for (x = 0; x < data.length; ++x)
+      _data[x] = data[x];
+    return _data;
   }
 
   public static String format(String sfmt, Object... args) {
-    byte[]      fmt;
-    byte[]      buf;
-    byte[]      src;
+    char[]      fmt;
+    char[]      buf;
+    char[]      src;
     int         x;
     int         y;
     int         z;
@@ -45,7 +82,10 @@ public class String {
     String      _s;
 
     fmt = sfmt.data;
-    buf = new byte[256];
+    // i know better can be done here, and should be done, but
+    // technically it should at least error out
+    // --kmcguire
+    buf = new char[256];
 
     a = 0;
     y = 0;
@@ -53,12 +93,12 @@ public class String {
       if (fmt[x] == '%') {
         switch (fmt[x + 1]) {
           case 's':
-            src = ((String)args[a++]).getBytes();
+            src = ((String)args[a++]).toCharArray();
             for (z = 0; z < src.length; ++z)
               buf[y++] = src[z];
             break;
           case 'i':
-            src = ((Integer)args[a++]).toString().getBytes();
+            src = ((Integer)args[a++]).toString().toCharArray();
             for (z = 0; z < src.length; ++z)
               buf[y++] = src[z];
             break;
@@ -77,8 +117,8 @@ public class String {
   public int compareTo(String str) {
     int         x;
     int         l;
-    byte[]      a;
-    byte[]      b;
+    char[]      a;
+    char[]      b;
 
     a = str.data;
     b = this.data;
@@ -99,7 +139,7 @@ public class String {
   }
 
   public String concat(String str) {
-    byte[]      n;
+    char[]      n;
     int         x;
     int         al;
     int         bl;
@@ -107,7 +147,7 @@ public class String {
     al = data.length;
     bl = str.length();
 
-    n = new byte[al + bl];
+    n = new char[al + bl];
 
     for (x = 0; x < al; ++x) {
       n[x] = data[x];
