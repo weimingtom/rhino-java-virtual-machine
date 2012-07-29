@@ -300,6 +300,14 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             debugf("TAG_FLOAT not implemented!\n");
             jvm_exit(-9);
             break;
+          case TAG_CLASSINFO:
+            // 1. create Class object which represents the specified class
+            // 2. push Class<type> object onto the stack
+            error = jvm_CreateObject(jvm, bundle, "java/lang/Class", &_jobject);
+            if (error < 0)
+              break;
+            jvm_StackPush(&stack, (uint64)_jobject, JVM_STACK_ISOBJECTREF);
+            break;
           default:
             debugf("TAG type %u not implemented!\n", jclass->pool[y - 1]->type);
             exit(-3);
@@ -1156,17 +1164,19 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
         f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
         d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
+        tmp = ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string;
         
         debugf("typeIndex:%x\n", d->descIndex);
-        debugf("type:%s\n", ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string + 2);
+        debugf("type:%s\n", tmp);
         
-        _jclass = jvm_FindClassInBundle(bundle, ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string + 1);
+        _jclass = jvm_FindClassInBundle(bundle, ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string);
         if (!_jclass) {
           error = JVM_ERROR_CLASSNOTFOUND;
           break;
         }
 
         a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
+        debugf("fieldName:%s\n", a->string);
 
         error = JVM_ERROR_MISSINGFIELD;
         for (w = 0; w < _jclass->sfieldCnt; ++w) {
@@ -1182,12 +1192,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           }
         }
         exit(-3);
-        // i do not think this needs to be here.. --kmcguire
-        //if (error > 0) {
-        //  debugf("field not found\n");
-        //  jvm_exit(-7);
-        //  break;
-        //}
         x += 3;
         break;
       /// getfield
@@ -1601,7 +1605,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          jvm_ScrubLocals(locals, method->code->maxLocals);
          debugf("##out2 data:%x flags:%x\n", stack.data, stack.flags);
          jvm_StackFree(&stack);
-         jvm_free(locals);
+         if (locals)
+          jvm_free(locals);
          return JVM_SUCCESS;
       default:
         debugf("unknown opcode %x\n", opcode);
