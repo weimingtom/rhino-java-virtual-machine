@@ -179,8 +179,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   
   // if locals passed is less then maxLocals then issue a calling error
   // if locals passed is greater than maxLocals then issue a calling error
-  if (method->code->maxLocals != localCnt)
+  if (method->code->maxLocals < localCnt) {
+    debugf("passed %u number of arguments but expected %u\n", localCnt, method->code->maxLocals);
+    exit(-3);
     return JVM_ERROR_WRONGARGCNT;
+  }
   
   debugf("method has code(%lx) of length %u\n", code, codesz);
   // maxLocals specifie the number of locals the method expects
