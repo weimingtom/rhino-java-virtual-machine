@@ -1157,10 +1157,15 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         jvm_StackPush(&stack, locals[3].data, locals[3].flags);
         x += 1;
         break;
+      /// putstatic
+      case 0xb3:
       /// getstatic
       case 0xb2:
         // name index into const pool table
         y = code[x+1] << 8 | code[x+2];
+
+        if (opcode == 0xb3)
+          jvm_StackPop(&stack, &result);          
 
         f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
         c = (JVMConstPoolClassInfo*)jclass->pool[f->classIndex - 1];
@@ -1169,33 +1174,44 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
         // TYPE
         tmp = ((JVMConstPoolUtf8*)jclass->pool[d->descIndex - 1])->string;
+        // FIELD NAME
+        a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
         
+        debugf("fieldName:%s\n", a->string);        
         debugf("mclass:%s\n", mclass);
         debugf("typeIndex:%x\n", d->descIndex);
         debugf("type:%s\n", tmp);
         
+        // START CLASS
         _jclass = jvm_FindClassInBundle(bundle, mclass);
         if (!_jclass) {
           error = JVM_ERROR_CLASSNOTFOUND;
           break;
         }
 
-        // FIELD NAME
-        a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
-        debugf("fieldName:%s\n", a->string);
-
         error = JVM_ERROR_MISSINGFIELD;
-        for (w = 0; w < _jclass->sfieldCnt; ++w) {
-          debugf("now herez %llx sfieldCnt:%u\n", _jclass->sfields, _jclass->fieldCnt);
-          debugf("looking for field %s have %s\n", a->string, _jclass->sfields[w].name);
-          debugf("but no here\n");
-          if (jvm_strcmp(_jclass->sfields[w].name, a->string) == 0) {
-            // push onto the stack
-            debugf("jclass->sfields[w].value:%li\n", _jclass->sfields[w].value);
-            jvm_StackPush(&stack, _jclass->sfields[w].value, _jclass->sfields[w].aflags);
-            error = JVM_SUCCESS;
-            break;
+        for (; _jclass->superClass != 0; _jclass = jvm_FindClassInBundle(bundle, ((JVMConstPoolUtf8*)_jclass->pool[((JVMConstPoolClassInfo*)_jclass->pool[_jclass->superClass - 1])->nameIndex - 1])->string)) {        
+          debugf("superClass:%s\n", ((JVMConstPoolUtf8*)_jclass->pool[((JVMConstPoolClassInfo*)_jclass->pool[_jclass->superClass - 1])->nameIndex - 1])->string);
+          //debugf("now looking in class %s\n", ((JVMConstPoolUtf8*)_jclass->pool[_jclass->thisClass - 1])->string);
+          for (w = 0; w < _jclass->sfieldCnt; ++w) {
+            debugf("now herez %llx sfieldCnt:%u\n", _jclass->sfields, _jclass->fieldCnt);
+            debugf("looking for field %s have %s\n", a->string, _jclass->sfields[w].name);
+            debugf("but no here\n");
+            if (jvm_strcmp(_jclass->sfields[w].name, a->string) == 0) {
+              // push onto the stack
+              debugf("found static field");
+              if (opcode == 0xb3) {
+                _jclass->sfields[w].value = (intptr)result.data;
+                _jclass->sfields[w].aflags = result.flags;
+              } else {
+                jvm_StackPush(&stack, _jclass->sfields[w].value, _jclass->sfields[w].aflags);
+              }
+              error = JVM_SUCCESS;
+              break;
+            }
           }
+          if (error == JVM_SUCCESS)
+            break;
         }
         x += 3;
         break;
@@ -1216,6 +1232,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("fieldname:%s\n", a->string);
         } else {
           if (_jclass->pool[y - 1]->type == 9) {
+            debugf("fieldref is 9\n");
+            exit(-3);
             f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
             d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
             a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
@@ -1235,63 +1253,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("##>field not found\n");
           break;
         }
-        x += 3;
-        break;
-      /// putstatic
-      case 0xb3:
-        // name
-        y = code[x+1] << 8 | code[x+2];
-        // value
-        jvm_StackPop(&stack, &result);
-
-        f = (JVMConstPoolFieldRef*)jclass->pool[y - 1];
-        d = (JVMConstPoolNameAndType*)jclass->pool[f->nameAndTypeIndex - 1];
-        a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
-        //tmp = a->string;
-
-        // look through obj's fields until we find
-        // a matching entry then check the types
-        for (w = 0; w < jclass->sfieldCnt; ++w) {
-          if (jvm_strcmp(jclass->sfields[w].name, a->string) == 0) {
-            // matched name now check type
-            if (jclass->sfields[w].flags & JVM_STACK_ISOBJECTREF)
-            {
-              // see if it is instance of class type specified
-              if (jvm_IsInstanceOf(bundle, ((JVMObject*)result.data), jvm_GetClassNameFromClass(jclass->sfields[w].jclass))) {
-                  debugf("not instance of..\n");
-                  error = JVM_ERROR_BADCAST;
-                  break;
-              }
-            } else {
-              //if (jclass->sfields[w].flags != result.flags) {
-              //  debugf("** %x / %x\n", jclass->sfields[w].flags, result.flags);
-              //  jvm_exit(4);
-              //  error = JVM_ERROR_FIELDTYPEDIFFERS;
-              //  break;
-              // }
-            }
-
-            if (error < 0)
-              break;
-
-            // for the previous object we are about to overwrite
-            // we need to do the same except decrement and unlink
-            // if refcnt is 0
-
-            // actualy store it now
-            jclass->sfields[w].value = (intptr)result.data;
-            jclass->sfields[w].aflags = result.flags;
-            debugf("putstatic jclass->sfields[w].value:%li\n", jclass->sfields[w].value);
-
-            break;
-          }
-
-        }
-
-        // if error go handle it
-        if (error < 0)
-          break;
-
         x += 3;
         break;
       /// putfield
