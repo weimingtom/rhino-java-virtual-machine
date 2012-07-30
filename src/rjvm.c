@@ -315,23 +315,37 @@ JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className) {
   return 0;
 }
 
-JVMMethod* jvm_FindMethodInClass(JVMClass *jclass, const char *methodName, const char *methodType) {
+int jvm_FindMethodInClass(JVMBundle *jbundle, JVMClass *jclass, const char *methodName, const char *methodType, JVMMethod **out) {
   JVMConstPoolUtf8      *a;
   JVMConstPoolUtf8      *b;
   int                   x;
-  
-  for (x = 0; x < jclass->methodCnt; ++x) {
-    /// get method name
-    a = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].nameIndex - 1];
-    /// get method type
-    b = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].descIndex - 1];
-    debugf("findmeth:[%s:%s]==[%s:%s]\n", methodName, methodType, a->string, b->string);
-    if (jvm_strcmp(a->string, methodName) == 0)
-      if (jvm_strcmp(b->string, methodType) == 0)
-        return &jclass->methods[x];
+
+  while (1) {
+    for (x = 0; x < jclass->methodCnt; ++x) {
+      /// get method name
+      a = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].nameIndex - 1];
+      /// get method type
+      b = (JVMConstPoolUtf8*)jclass->pool[jclass->methods[x].descIndex - 1];
+      debugf("findmeth:[%s:%s]==[%s:%s]\n", methodName, methodType, a->string, b->string);
+      if (jvm_strcmp(a->string, methodName) == 0)
+        if (jvm_strcmp(b->string, methodType) == 0) {
+          *out = &jclass->methods[x];
+          return JVM_SUCCESS;
+        }
+    }
+    // move down the inheritance chain
+    if (!jclass->superClass) {
+      return JVM_ERROR_METHODNOTFOUND;
+    }
+    a = ((JVMConstPoolUtf8*)jclass->pool[((JVMConstPoolClassInfo*)jclass->pool[jclass->superClass - 1])->nameIndex - 1]);
+    jclass = jvm_FindClassInBundle(jbundle, a->string);
+    if (!jclass) {
+      debugf("could not find class %s in bundle\n", a->string);
+      return JVM_ERROR_CLASSNOTFOUND;
+    }
   }
   debugf("could not find method %s of type %s\n", methodName, methodType);
-  return 0;
+  return JVM_ERROR_METHODNOTFOUND;
 }
 
 int jvm_IsMethodReturnTypeVoid(const char *typestr) {
@@ -543,6 +557,8 @@ int jvm_MakeStaticFields(JVM *jvm, JVMBundle *bundle, JVMClass *class) {
   int                   x;
   int                   y;
   uint8                 *s;
+  JVMMethod             *method;
+  
   debugf("@@>in %lx\n", class);
   for (x = 0, y = 0; x < class->fieldCnt; ++x) {
     debugf("@@>HH1\n");
@@ -570,7 +586,7 @@ int jvm_MakeStaticFields(JVM *jvm, JVMBundle *bundle, JVMClass *class) {
     }
   }
   //
-  if (jvm_FindMethodInClass(class, "<clinit>", "()V")) {
+  if (jvm_FindMethodInClass(bundle, class, "<clinit>", "()V", &method)) {
     debugf("@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
     jvm_ExecuteObjectMethod(jvm, bundle, class, "<clinit>", "()V", 0, 0, 0);
   }

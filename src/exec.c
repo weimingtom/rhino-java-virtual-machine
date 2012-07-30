@@ -161,8 +161,8 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
 
   /// find method specifiee
   debugf("classname:%s\n", jvm_GetClassNameFromClass(jclass));
-  method = jvm_FindMethodInClass(jclass, methodName, methodType);
-  if (!method) {
+  error = jvm_FindMethodInClass(bundle, jclass, methodName, methodType, &method);
+  if (error) {
     debugf("JVM_ERROR_METHODNOTFOUND\n");
     return JVM_ERROR_METHODNOTFOUND;
   }
@@ -1447,29 +1447,12 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // a->string is the type description of the method
          mtype = a->string;
 
-         /// look for method in our class then walk super classes
-         /// and see if we can find it
-         debugf("----------\n");
-         while ((_method = jvm_FindMethodInClass(_jclass, mmethod, mtype)) == 0) {
-           debugf("superClass:%u\n", _jclass->superClass);
-           if (!_jclass->superClass) {
-             error = JVM_ERROR_METHODNOTFOUND;
-             debugf("could not find method %s in %s class or in supers\n", mmethod, mclass);
-             exit(-3);
-             break;
-           }
-           c = (JVMConstPoolClassInfo*)_jclass->pool[_jclass->superClass - 1];
-           debugf("c:%x\n", c);
-           a = (JVMConstPoolUtf8*)_jclass->pool[c->nameIndex - 1];
-           debugf("a->string:%s\n", a->string);
-           _jclass = jvm_FindClassInBundle(bundle, a->string);
-           if (!_jclass)
-           {
-             error = JVM_ERROR_SUPERMISSING;
-             debugf("Could not find super class in bundle!?!\n");
-             break;
-           }
-         }
+         // look for method (this will walk super to super to find it)
+         // if not found then break out of switch with the error that
+         // gets returned
+         error = jvm_FindMethodInClass(bundle, _jclass, mmethod, mtype, &_method);
+         if (error)
+          break;
 
          argcnt = jvm_GetMethodTypeArgumentCount(mtype);
 
@@ -1529,14 +1512,25 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // check if this is a special native implemented object
          debugf("accessFlags:%x\n", _method->accessFlags);
          if ((_jclass->flags & JVM_CLASS_NATIVE) && (_method->accessFlags & JVM_ACC_NATIVE)) {
-           debugf("-----native-call----\n");
-           // get native implementation procedure index
-           eresult = _jclass->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
-           //eresult = jvm->nprocs[w](jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result); 
+            debugf("-----native-call----\n");
+            // get native implementation procedure index
+            eresult = _jclass->nhand(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
+            //eresult = jvm->nprocs[w](jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt + 1, &result); 
          } else {
-           debugf("-----java-call----\n");
-           debugf("right before call\n");
-           eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
+            debugf("-----java-call----\n");
+            debugf("right before call\n");
+            // virtual (treat object as class object was instanced as)
+            if (opcode == 0xb6) {
+              eresult = jvm_ExecuteObjectMethod(jvm, bundle, ((JVMObject*)_locals[0].data)->class, mmethod, mtype, _locals, argcnt, &result);
+            }
+            // special (treat the object as the class specified in _jclass (mclass))
+            if (opcode == 0xb7) {
+              eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
+            }
+            // static (treat the object as the class specified in _jclass (mclass))
+            if (opcode == 0xb8) {
+              eresult = jvm_ExecuteObjectMethod(jvm, bundle, _jclass, mmethod, mtype, _locals, argcnt, &result);
+            }
          }
          jvm_free(_locals);
 

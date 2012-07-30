@@ -339,7 +339,7 @@ typedef struct _JVM {
 
 JVMClass* jvm_LoadClass(struct _JVMMemoryStream *m);
 JVMClass* jvm_FindClassInBundle(JVMBundle *bundle, const char *className);
-JVMMethod* jvm_FindMethodInClass(JVMClass *jclass, const char *methodName, const char *methodType);
+int jvm_FindMethodInClass(JVMBundle *jbundle, JVMClass *jclass, const char *methodName, const char *methodType, JVMMethod **out);
 int jvm_IsMethodReturnTypeVoid(const char *typestr);
 int jvm_GetMethodTypeArgumentCount(const char *typestr);
 void jvm_ScrubLocals(JVMLocal *locals, uint8 maxLocals);
