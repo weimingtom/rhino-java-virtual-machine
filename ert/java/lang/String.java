@@ -74,12 +74,14 @@ public class String {
   public static String format(String sfmt, Object... args) {
     char[]      fmt;
     char[]      buf;
+    char[]      _buf;
     char[]      src;
     int         x;
     int         y;
     int         z;
     int         a;
     String      _s;
+    
 
     fmt = sfmt.data;
     // i know better can be done here, and should be done, but
@@ -111,7 +113,13 @@ public class String {
         buf[y++] = fmt[x];
       }
     }
-    return new String(buf);
+    
+    // create new buf of the exact needed size
+    _buf = new char[y];
+    for (x = 0; x < y; ++x)
+      _buf[x] = buf[x];
+    
+    return new String(_buf);
   }
 
   public int compareTo(String str) {
