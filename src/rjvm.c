@@ -216,8 +216,12 @@ JVMClass* jvm_LoadClass(JVMMemoryStream *m) {
         class->methods[x].code->maxLocals = msRead16(m);
         class->methods[x].code->codeLength = msRead32(m);
         /// read code segment
-        class->methods[x].code->code = (uint8*)jvm_malloc(class->methods[x].code->codeLength);
-        msRead(m, class->methods[x].code->codeLength, class->methods[x].code->code);
+        class->methods[x].code->code = (uint8*)jvm_malloc(class->methods[x].code->codeLength + 4);
+        
+        if ((uintptr)class->methods[x].code->code & 0x3)
+          msRead(m, class->methods[x].code->codeLength, (void*)((uintptr)class->methods[x].code->code & ~0x3) + 4);
+        else
+          msRead(m, class->methods[x].code->codeLength, class->methods[x].code->code);
         /// read exception table
         class->methods[x].code->eTableCount = msRead16(m);
         class->methods[x].code->eTable = 0;
@@ -615,14 +619,9 @@ int jvm_MakeObjectFields(JVM *jvm, JVMBundle *bundle, JVMObject *jobject) {
       // convert into flags
       error = jvm_FieldTypeStringToFlags(bundle, u8->string, &jclass, &fields[y].flags);
       debugf("made field %s<%s> flags:%u\n", fields[y].name, u8->string, fields[y].flags);
-      // for object arrays this is needed (not primitive arrays)
-      // I think this should be okay for primitive fields it has to be commented out.
-      //if (jclass == 0) {
-      //  debugf("jclass! %s %x\n", u8->string, fields[y].flags);
-      //  jvm_exit(-9);
-      //}
+      // set class
       fields[y].jclass = jclass;
-      // valid for all types
+      // set value
       fields[y].value = 0;
       ++y;
     } 
