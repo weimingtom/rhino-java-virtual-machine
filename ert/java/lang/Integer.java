@@ -77,8 +77,8 @@ public class Integer extends Number implements Comparable {
   }
 
   public static String toString(int i) {
-    byte[]      b;
-    byte[]      _b;
+    char[]      b;
+    char[]      _b;
     int         m;
     int         x;
     int         c;
@@ -86,7 +86,7 @@ public class Integer extends Number implements Comparable {
     int         zc;
     int         gotr;
 
-    b = new byte[32];
+    b = new char[32];
     m = 1000000000;
     x = 0;
     zc = 0;
@@ -107,14 +107,14 @@ public class Integer extends Number implements Comparable {
       if (c > 0)
         gotr = 1;
       if (gotr == 1) {
-        b[x] = (byte)((int)'0' + c);
+        b[x] = (char)((int)'0' + c);
         ++x;
       }
     }
     // cleanup original buffer by
     // making a new one of the
     // exact size of the string
-    _b = new byte[x];
+    _b = new char[x];
     for (i = 0; i < x; ++i)
       _b[i] = b[i];
     return new String(_b);
