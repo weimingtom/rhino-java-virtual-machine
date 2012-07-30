@@ -77,11 +77,12 @@ int jvm_core_core_handler(struct _JVM *jvm, struct _JVMBundle *bundle, struct _J
       if (!pobject)
         break;
 
-      debugf("##:printc:");
+      debugf("##:printc[%u]:", pobject->fieldCnt);
       for (c = 0; c < pobject->fieldCnt; ++c) {
-        jvm_printf("%c", ((uint8*)pobject->fields)[c]);
+        jvm_printf("%c", ((uint16*)pobject->fields)[c]);
       }
       jvm_printf("\n");
+      exit(-3);
       break;
     // EnumClasses
     case 0x463:
