@@ -62,6 +62,11 @@ int jvm_CreatePrimArray(JVM *jvm, JVMBundle *bundle, uint8 type, uint32 cnt, JVM
   _jobject->fields = 0;
   _jobject->stackCnt = 0;
   _jobject->cmark = 0;
+  
+  // work around for allocation of zero length arrays
+  if (!cnt)
+    cnt = 1;
+  
   if (!buf) {
     switch(type) {
       case JVM_ATYPE_LONG:
@@ -169,6 +174,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
   }
 
   code = method->code->code;
+  // adjustment to align code on 4-byte boundary which is
+  // needed by switch type opcodes
+  if ((uintptr)code & 0x3)
+    code = (uint8*)(((uintptr)code & ~3) + 4);
+  
   codesz = method->code->codeLength;
 
   /// weird bug.. i need to add a little onto the stack because
@@ -269,7 +279,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             // create byte array to hold string
             /// todo: ref our byte[] to String
             /// todo: also do for putfield and getfield opcodes
-            jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_BYTE, w, &__jobject, 0);
+            jvm_CreatePrimArray(jvm, bundle, JVM_ATYPE_CHAR, w, &__jobject, 0);
             __jobject->stackCnt = 0;
             debugf("_jobject->_fields:%x\n", _jobject->_fields);
             for (w = 0; w < _jobject->fieldCnt; ++w) {
@@ -285,7 +295,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
             }
             // copy string into primitive byte array
             for (w = 0; a->string[w] != 0; ++w)
-              ((uint8*)__jobject->fields)[w] = a->string[w];
+              ((uint16*)__jobject->fields)[w] = a->string[w];
             // push onto stack the String object
             jvm_StackPush(&stack, _jobject, JVM_STACK_ISOBJECTREF);
             JVM_OBJCOLRELEASE(_jobject);
@@ -1109,7 +1119,7 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
         y = code[x+1];
         jvm_StackPop(&stack, &result);
         jvm_CreatePrimArray(jvm, bundle, y, result.data, &_jobject, 0);
-        debugf("##> primarray %x\n", _jobject);
+        debugf("##> primarray %x size:%x\n", _jobject, result.data);
         jvm_StackPush(&stack, (uintptr)_jobject, (y << 4) | JVM_STACK_ISARRAYREF | JVM_STACK_ISOBJECTREF);
         JVM_OBJCOLRELEASE(_jobject);
         x += 2;
@@ -1232,8 +1242,6 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
           debugf("fieldname:%s\n", a->string);
         } else {
           if (_jclass->pool[y - 1]->type == 9) {
-            debugf("fieldref is 9\n");
-            exit(-3);
             f = (JVMConstPoolFieldRef*)_jclass->pool[y - 1];
             d = (JVMConstPoolNameAndType*)_jclass->pool[f->nameAndTypeIndex - 1];
             a = (JVMConstPoolUtf8*)_jclass->pool[d->nameIndex - 1];
@@ -1296,11 +1304,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// tableswitch
       case 0xaa:
         jvm_StackPop(&stack, &result);
-        w = (uintptr)&code[x];
+        w = (uintptr)&code[x] + 1;
         if (w & 0x3)
           w = (w & ~0x3) + 4;
-        else
-          w += 4;
+          
         debugf("code[%x]%lx w:%lx\n", x, (uintptr)&code[x], w);
 
         w += 0;
@@ -1347,20 +1354,34 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
       /// lookupswitch
       case 0xab:
         jvm_StackPop(&stack, &result);
-        w = (uintptr)&code[x];
+        w = (uintptr)&code[x] + 1;
         if (w & 0x3)
           w = (w & ~0x3) + 4;
-        else
-          w += 4;
+
         debugf("code[%x]%lx w:%lx\n", x, (uintptr)&code[x], w);
         
+        printf("dmp:");
+        for (y = 0; y < 20; ++y) {
+          printf("%02x ", ((uint8*)w)[y]);
+        }
+        printf("\n");
+        
         map = (uint32*)(w);
+        
+        //  6  7  8  9  a
+        // 00 00 00 00 75 00 00 00 02
 
-        debugf("x:%u w:%u\n", (uintptr)&code[x], w);
+        debugf("x:%lx w:%lx\n", (uintptr)&code[x], w);
         debugf("--- %x %i %i\n", nothl(map[0]), nothl(map[1]), nothl(map[2]));
+        
+        if (nothl(map[1]) > 30)
+          exit(-3);
+        
         for (y = 0; y < nothl(map[1]); ++y) {
            debugf("map:%i:%i\n", nothl(map[y*2+2]), nothl(map[y*2+3]));
+           
         }
+        
         for (y = 0; y < nothl(map[1]); ++y) {
           v = (int32)nothl(map[y*2+3]);
           k = nothl(map[y*2+2]);
@@ -1402,6 +1423,10 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
          // break;
          //}
          debugf("mclass:%s\n", mclass);
+         
+         // a is CharacterDataLatin1 extends CharacterData
+         // our object is instanced from CharacterDataLatin1
+         
 
          d = (JVMConstPoolNameAndType*)jclass->pool[b->descIndex - 1];
          a = (JVMConstPoolUtf8*)jclass->pool[d->nameIndex - 1];
@@ -1588,10 +1613,11 @@ int jvm_ExecuteObjectMethod(JVM *jvm, JVMBundle *bundle, JVMClass *jclass,
     // the athrow opcode or a run-time exception occured and the type
     // of it is stored in error
     if (error < 0) {
+      debugf("creating exception with code %i\n", error);
+      exit(-3);
       debugf("got exception -- scrubing locals and stack\n");
       /// these are run-time exceptions
       if (error != JVM_ERROR_EXCEPTION) {
-        debugf("creating\n");
         // if we arrived here it is because the error variable was set to a 
         // non-zero negative value which represents a certain exceptions and
         // errors
